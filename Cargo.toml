@@ -1,0 +1,17 @@
+[package]
+name = "hipparchia_rust_dbhelper"
+version = "0.0.4"
+authors = ["e-gun"]
+edition = "2018"
+
+[dependencies]
+clap = "2.33.3"
+env_logger = "0.8.1"
+humantime = "2.1.0"
+lazy_static = "1.4.0"
+redis = "0.20.0"
+regex = "1.5.4"
+json = "0.12.4"
+postgres = "0.19.1"
+tungstenite = "0.13.0"
+uuid = { version = "0.8.2", features = ["v4"] }
