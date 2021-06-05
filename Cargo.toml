@@ -4,6 +4,9 @@ version = "0.0.4"
 authors = ["e-gun"]
 edition = "2018"
 
+[profile.release]
+lto = true
+
 [dependencies]
 clap = "2.33.3"
 env_logger = "0.8.1"

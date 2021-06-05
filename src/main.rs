@@ -10,11 +10,11 @@ use std::convert::TryInto;
 use std::env::vars_os;
 use std::net::TcpStream;
 use std::time::{Duration, Instant, SystemTime};
-use lazy_static::lazy_static;
 
 use clap::{App, Arg, ArgMatches};
 use humantime::format_duration;
 use json::JsonValue;
+use lazy_static::lazy_static;
 use postgres::{Client, Error, NoTls};
 use redis::Commands;
 use regex::Regex;
@@ -51,21 +51,22 @@ struct DBLine {
     an: String,
 }
 
-struct MorphPossibility  {
+#[derive(Clone)]
+struct DbMorphology {
+    obs: String,
+    xrf: String,
+    pxr: String,
+    rpo: String,
+    upo: HashMap<String, bool>
+}
+
+struct MorphPossibility {
     obs: String,
     num: String,
     ent: String,
     xrf: String,
     ana: String,
 }
-
-// https://github.com/rust-lang/regex/blob/master/examples/shootout-regex-dna-replace.rs
-// macro_rules! regex {
-//     ($re:expr) => {{
-//         use regex::internal::ExecBuilder;
-//         ExecBuilder::new($re).build().unwrap().into_regex()
-//     }};
-// }
 
 fn main() {
     println!("{} CLI Debugging Interface (v.{})", MYNAME, VERSION);
@@ -247,12 +248,6 @@ fn grabworker(id: Uuid, cap: &i32, thekey: &str, pg: &str, rc: &str) -> Result<(
     loop {
         passes = passes + 1;
 
-        // let x = passes % 50;
-        // if x == 0 {
-        //     let m = format!("{} working on pass #{}", &id, &passes);
-        //     lfl(m, 0, 0);
-        // }
-
         // [a] pop a query stored as json in redis
         let j = rs_spop(&thekey, &mut redisconn);
         if &j == &"" {
@@ -332,7 +327,6 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
     //
     // once you reach this point python can fetch the bags and then run "Word2Vec(bags, parameters, ...)"
     //
-    // func HipparchiaBagger(searchkey string, baggingmethod string, goroutines int, thedb string, thestart int, theend int,
 
     // https://doc.rust-lang.org/std/time/struct.SystemTime.html
     let start = Instant::now();
@@ -350,7 +344,7 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
     rs_set_int(&thiskey, 0, &mut rc);
 
     // [a] grab the db lines
-    if &k == &"" {
+    if &k == &"rusttest" {
         let m = format!("No redis key; gathering lines with a direct CLI PostgreSQL query)");
         lfl(m, ll, 1);
         // otherwise we will mimic grabworker() pattern to aggregate the lines
@@ -363,7 +357,9 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
         _ => db_redisfectch(),
     };
 
-    let size = dblines.len();
+    let duration = start.elapsed();
+    let m = format!("dblines fetched [A: {}]", format_duration(duration).to_string());
+    lfl(m, ll, 2);
 
     // [b] turn them into a unified text block
     // yes, but what is the fastest way...? cf. the huge golang speedup via strings.Builder
@@ -437,8 +433,64 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
 
     // [f] find all of the parsing info relative to these words
 
-    // let allwords = allwords.iter().map(|w| w.to_string()).collect();
-    sv_getrequiredmorphobjects(allwords);
+    let  mo: HashMap<String, DbMorphology> = sv_getrequiredmorphobjects(allwords, &mut pg);
+
+    let duration = start.elapsed();
+    let m = format!("found {} morphology objects [F: {}]", mo.len(), format_duration(duration).to_string());
+    lfl(m, ll, 2);
+
+    // [g] figure out which headwords to associate with the collection of words
+    // see convertmophdicttodict()
+    // a set of sets
+    //	key = word-in-use
+    //	value = { maybeA, maybeB, maybeC}
+    // {'θεῶν': {'θεόϲ', 'θέα', 'θεάω', 'θεά'}, 'πώ': {'πω'}, 'πολλά': {'πολύϲ'}, 'πατήρ': {'πατήρ'}, ... }
+
+    lazy_static! {
+        // this regex matches the python for good/ill...
+        static ref POSSPARSE: Regex = Regex::new("(<possibility_([0-9]{1,2})>)(.*?)<xref_value>(.*?)</xref_value><xref_kind>(.*?)</xref_kind>(.*?)</possibility_[0-9]{1,2}>").unwrap();
+        }
+
+    let mut morphmap: HashMap<String, HashMap<String, bool>> = HashMap::new();
+    for m in mo.keys() {
+        // unpack the unique possibilities
+        let pp: Vec<MorphPossibility> = mo[m].upo.keys().into_iter()
+            .map(|k| sv_getpossiblemorph(k.to_string(), m.clone(), POSSPARSE.clone()))
+            .collect();
+        // add them to the collection of possibilities or generate a new slot for them in the collection
+        for p in pp {
+            let mut y: HashMap<String, bool> = HashMap::new();
+            y.insert(p.ent.clone(), true);
+            if morphmap.contains_key(&p.obs) {
+                // X is already present in 'morphdict'; need to add this headword to the set of headwords
+
+                // morphmap[&p.obs].insert(p.ent.clone(), true);
+                // above fails to build with:
+                //  ^^^^^^^^^^^^^^^^ cannot borrow as mutable
+                //  help: trait `IndexMut` is required to modify indexed content, but it is not implemented for `HashMap<std::string::String, HashMap<std::string::String, bool>>`
+
+                // https://stackoverflow.com/questions/30414424/how-can-i-update-a-value-in-a-mutable-hashmap
+                // https://doc.rust-lang.org/std/collections/struct.HashMap.html#method.get_mut
+                // let mut map = HashMap::new();
+                // map.insert(1, "a");
+                // if let Some(x) = map.get_mut(&1) {
+                //     *x = "b";
+                // }
+                // assert_eq!(map[&1], "b");
+
+                if let Some(x) = morphmap.get_mut(&p.obs) {
+                    *x = y;
+                }
+            } else {
+                // initialize and insert...
+                morphmap.insert(p.obs.clone(), y);
+            }
+        }
+    }
+
+    let duration = start.elapsed();
+    let m = format!("Built morphmap [G: {}]", format_duration(duration).to_string());
+    lfl(m, ll, 2);
 
     std::process::exit(1);
 }
@@ -562,16 +614,51 @@ fn ws_fields<'a>() ->  Vec<&'a str> {
     v
 }
 
-fn db_arraytogetrequiredmorphobjects(words: Vec<&str>, lang: &str) -> Vec<MorphPossibility> {
-    // let placeholder = MorphPossibility{
-    //     obs: "".to_string(),
-    //     num: String,
-    //     ent: String,
-    //     xrf: String,
-    //     ana: String,};
+fn db_sv_get_morphobjects(words: &mut Vec<&str>, lang: &str, pg: &mut postgres::Client) -> Vec<DbMorphology> {
+    // look for the upper case matches too: Ϲωκράτηϲ and not just ϲωκρατέω (!)
 
-    let unused: Vec<MorphPossibility> = Vec::new();
-    unused
+    let mut wordswithcaps: Vec<String> = words.iter().map(|w| str_cap(w)).collect();
+    let mut w = words.iter().map(|w| w.to_string()).collect();
+    wordswithcaps.append(&mut w);
+
+    // let tt: &str= "CREATE TEMPORARY TABLE ttw_{} AS SELECT words AS w FROM unnest(ARRAY[{}]) words";
+    // let qt: &str= "SELECT observed_form, xrefs, prefixrefs, possible_dictionary_forms FROM {}_morphology WHERE EXISTS (SELECT 1 FROM ttw_{} temptable WHERE temptable.w = {}_morphology.observed_form)";
+
+    let mut rndid = Uuid::new_v4().to_string();
+    rndid.retain(|c| c != '-');
+
+    let ttarr = wordswithcaps.join("', '");
+    let ttarr = format!("'{}'", ttarr);
+    let t = format!("CREATE TEMPORARY TABLE ttw_{} AS SELECT words AS w FROM unnest(ARRAY[{}]) words", &rndid, ttarr);
+
+    // println!("{}", &t);
+    pg.execute(t.as_str(), &[]).ok().expect("db_arraytogetrequiredmorphobjects() TempTable creation failed");
+
+    lazy_static! {
+        static ref POSS : Regex = Regex::new("<possibility_[0-9]{1,2}>.*?</possibility_[0-9]{1,2}>").unwrap();
+    }
+
+    let q = format!("SELECT observed_form, xrefs, prefixrefs, possible_dictionary_forms FROM {}_morphology WHERE EXISTS (SELECT 1 FROM ttw_{} temptable WHERE temptable.w = {}_morphology.observed_form)", &lang, rndid, &lang);
+    let dbmo = pg.query(q.as_str(), &[]).unwrap().into_iter()
+        .map(|row| DbMorphology {
+            obs: row.get("observed_form"),
+            xrf: row.get("xrefs"),
+            pxr: row.get("prefixrefs"),
+            rpo: row.get("possible_dictionary_forms"),
+            upo: sv_updatesetofpossibilities(row.get("possible_dictionary_forms"), POSS.clone()),
+        }).collect::<Vec<DbMorphology>>();
+    dbmo
+}
+
+fn sv_updatesetofpossibilities(rpo: String, re: Regex) -> HashMap<String, bool> {
+    // a new collection of possibilities has arrived <p1>xxx</p1><p2>yyy</p2>...
+    // parse this string for a list of possibilities; then add its elements to the set of known possibilities
+    // return the updated set
+    let mut morph: HashMap<String, bool> = HashMap::new();
+    for f in re.find_iter(rpo.as_str()) {
+        morph.insert(String::from(f.as_str()), true);
+    }
+    morph
 }
 
 fn db_fields<'a>() ->  Vec<&'a str> {
@@ -599,7 +686,7 @@ fn db_directfetch(t: &str, s: i32, e: i32, pg: &mut postgres::Client) -> Vec<DBL
         st: row.get("stripped_line"),
         hy: row.get("hyphenated_words"),
         an: row.get("annotations"),
-    }).collect::<Vec<_>>();
+    }).collect::<Vec<DBLine>>();
     lines
 }
 
@@ -705,7 +792,7 @@ fn sv_buildsentences(splittext: Vec<&str>) -> HashMap<String, String> {
 
     for s in splittext {
         let lcs = s.to_string().to_lowercase();
-        let thesentence = TAGGER.replace_all(&s, "").into_owned();
+        let thesentence = TAGGER.replace_all(&lcs, "").into_owned();
         let thesentence = NOTCHAR.replace_all(&thesentence, "").into_owned();
         let firsthit: String = match LOCC.captures(s.clone()) {
             None => "".to_string(),
@@ -728,9 +815,9 @@ fn sv_findallwords(sentences: Vec<&str>) -> Vec<&str> {
     thewords
 }
 
-fn sv_getrequiredmorphobjects(words: Vec<&str>) -> HashMap<&str, MorphPossibility> {
+fn sv_getrequiredmorphobjects(words: Vec<&str>, pg: &mut postgres::Client) -> HashMap<String, DbMorphology> {
     let latintest = Regex::new("[a-z]+").unwrap();
-    let greektest = Regex::new("[α-ωϲἀἁἂἃἄἅἆἇᾀᾁᾂᾃᾄᾅᾆᾇᾲᾳᾴᾶᾷᾰᾱὰάἐἑἒἓἔἕὲέἰἱἲἳἴἵἶἷὶίῐῑῒΐῖῗὀὁὂὃὄὅόὸὐὑὒὓὔὕὖὗϋῠῡῢΰῦῧύὺᾐᾑᾒᾓᾔᾕᾖᾗῂῃῄῆῇἤἢἥἣὴήἠἡἦἧὠὡὢὣὤὥὦὧᾠᾡᾢᾣᾤᾥᾦᾧῲῳῴῶῷώὼ]+").unwrap();
+    // let greektest = Regex::new("[α-ωϲἀἁἂἃἄἅἆἇᾀᾁᾂᾃᾄᾅᾆᾇᾲᾳᾴᾶᾷᾰᾱὰάἐἑἒἓἔἕὲέἰἱἲἳἴἵἶἷὶίῐῑῒΐῖῗὀὁὂὃὄὅόὸὐὑὒὓὔὕὖὗϋῠῡῢΰῦῧύὺᾐᾑᾒᾓᾔᾕᾖᾗῂῃῄῆῇἤἢἥἣὴήἠἡἦἧὠὡὢὣὤὥὦὧᾠᾡᾢᾣᾤᾥᾦᾧῲῳῴῶῷώὼ]+").unwrap();
     let mut latinwords: Vec<&str> = Vec::new();
     let mut greekwords: Vec<&str> = Vec::new();
     for w in words {
@@ -743,12 +830,52 @@ fn sv_getrequiredmorphobjects(words: Vec<&str>) -> HashMap<&str, MorphPossibilit
     }
     println!("l: {}; g: {}", latinwords.len(), greekwords.len());
 
-    let ltmorph = db_arraytogetrequiredmorphobjects(latinwords, "latin");
-    let grmorph = db_arraytogetrequiredmorphobjects(greekwords, "greek");
+    let mut morph: Vec<DbMorphology> = db_sv_get_morphobjects(&mut latinwords, "latin", pg);
+    let mut grmorph: Vec<DbMorphology> = db_sv_get_morphobjects(&mut greekwords, "greek", pg);
 
-    let mut mo: HashMap<&str, MorphPossibility> = HashMap::new();
+    morph.append(&mut grmorph);
 
+    let mut mo: HashMap<String, DbMorphology> = HashMap::new();
+    for m in morph {
+        mo.insert(m.obs.clone(), m.clone());
+    }
     mo
+}
+
+fn sv_getpossiblemorph(ob: String, po: String, re: Regex) -> MorphPossibility {
+    //     let pf = "(<possibility_([0-9]{1,2})>)(.*?)<xref_value>(.*?)</xref_value><xref_kind>(.*?)</xref_kind>(.*?)</possibility_[0-9]{1,2}>";
+    //     let re = Regex::new(pf).unwrap();
+    //
+    //     let p = "<possibility_2>bellī, bellus<xref_value>8636495</xref_value><xref_kind>9</xref_kind><transl>A. pretty; B. every thing beautiful; A. Gallant; B. good</transl><analysis>masc nom/voc pl</analysis></possibility_2>";
+    //
+    //     let c = re.captures(p).unwrap();
+    //
+    //     for i in 0..7 {
+    //         let t = c.get(i).map_or("", |m| m.as_str());
+    //         println!("{}: {}", i, t);
+    //     }
+    // 0: <possibility_2>bellī, bellus<xref_value>8636495</xref_value><xref_kind>9</xref_kind><transl>A. pretty; B. every thing beautiful; A. Gallant; B. good</transl><analysis>masc nom/voc pl</analysis></possibility_2>
+    // 1: <possibility_2>
+    // 2: 2
+    // 3: bellī, bellus
+    // 4: 8636495
+    // 5: 9
+    // 6: <transl>A. pretty; B. every thing beautiful; A. Gallant; B. good</transl><analysis>masc nom/voc pl</analysis>
+
+    let c = re.captures(po.as_str()).unwrap();
+    let n = c.get(2).map_or("", |m| m.as_str());
+    let e = c.get(3).map_or("", |m| m.as_str());
+    let x = c.get(4).map_or("", |m| m.as_str());
+    let a = c.get(6).map_or("", |m| m.as_str());
+
+    let mp: MorphPossibility = MorphPossibility {
+        obs: ob,
+        num: n.to_string(),
+        ent: e.to_string(),
+        xrf: x.to_string(),
+        ana: a.to_string(),
+    };
+    mp
 }
 
 fn postgresconnect(j: String) -> postgres::Client {
@@ -786,43 +913,15 @@ fn make_ascii_title_case(s: &mut str) {
     }
 }
 
+fn str_cap(s: &str) -> String {
+    // if we are not using ascii strings...
+    format!("{}{}", s.chars().next().unwrap().to_uppercase(),
+            s.chars().skip(1).collect::<String>())
+}
+
 fn lfl(message: String, loglevel: i32, threshold: i32) {
     // log if logging
     if loglevel >= threshold {
         println!("[{}] {}", SHORTNAME, message);
     }
 }
-
-
-//  THE GOLANG API
-// 	  -c int
-// 			[searches] max hit count (default 200)
-// 	  -k string
-// 			[searches] redis key to use (default "go")
-// 	  -l int
-// 			[common] logging level: 0 is silent; 5 is very noisy (default 1)
-// 	  -p string
-// 			[common] psql logon information (as a JSON string) (default "{\"Host\": \"localhost\", \"Port\": 5432, \"User\": \"hippa_wr\", \"Pass\": \"\", \"DBName\": \"hipparchiaDB\"}")
-// 	  -r string
-// 			[common] redis logon information (as a JSON string) (default "{\"Addr\": \"localhost:6379\", \"Password\": \"\", \"DB\": 0}")
-// 	  -sv
-// 			[vectors] assert that this is a vectorizing run
-// 	  -svb string
-// 			[vectors] the bagging method: choices are alternates, flat, unlemmatized, winnertakesall (default "winnertakesall")
-// 	  -svdb string
-// 			[vectors][for manual debugging] db to grab from (default "lt0448")
-// 	  -sve int
-// 			[vectors][for manual debugging] last line to grab (default 26)
-// 	  -svs int
-// 			[vectors][for manual debugging] first line to grab (default 1)
-// 	  -t int
-// 			[common] number of goroutines to dispatch (default 5)
-// 	  -v    [common] print version and exit
-// 	  -ws
-// 			[websockets] assert that you are requesting the websocket server
-// 	  -wsf int
-// 			[websockets] fail threshold before messages stop being sent (default 4)
-// 	  -wsp int
-// 			[websockets] port on which to open the websocket server (default 5010)
-// 	  -wss int
-// 			[websockets] save the polls instead of deleting them: 0 is no; 1 is yes

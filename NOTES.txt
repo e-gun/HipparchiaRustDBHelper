@@ -3,6 +3,9 @@ L='{"Host": "localhost", "Port": 5432, "User": "hippa_wr", "Pass": "THEPASS", "D
 ./target/debug/hipparchia_rust_dbhelper --sv --p ${L}
 
 
+// http://lise-henry.github.io/articles/optimising_strings.html
+// not really going to help with our pain points?
+
 
  ./target/debug/hipparchia_rust_dbhelper --sv --l 3 --p ${L} --svdb lt0474 --svs 4 --sve 100
 
@@ -57,19 +60,7 @@ Hipparchia Rust Helper CLI Debugging Interface (v.0.0.4)
 l: 14875; g: 1
 
 
-RUST vs GO: Golang slaughters on this one...
-
-1452 •erik@big-sur-box• rust/HipparchiaRustDBHelper/ % ./target/debug/hipparchia_rust_dbhelper --sv --l 3 --p ${L} --svdb lt0474 --svs 4 --sve 100000
-Hipparchia Rust Helper CLI Debugging Interface (v.0.0.4)
-[HRH] requested the vector_prep() branch of the code
-[HRH] Seeking to build winnertakesall bags of words
-99997
-[HRH] unified text block built [B: 2s 87ms 658us 860ns]
-[HRH] preliminary cleanups complete [C: 2s 833ms 810us 80ns]
-[HRH] found 44447 sentences [D: 7s 705ms 855us 584ns]
-[HRH] found 67447 words [E: 8s 767ms 826us 901ns]
-l: 67220; g: 227
-
+RUST vs GO:
 
 1217 •erik@big-sur-box• e-gun/HipparchiaGoDBHelper/ % date && ./HipparchiaGoDBHelper -sv -l 5 -svdb lt0474 -svs 4 -sve 100000 -k "" -p ${L} && date
 Fri Jun  4 17:16:33 EDT 2021
@@ -91,3 +82,18 @@ Fri Jun  4 17:16:33 EDT 2021
 [HGH] Reached result @ 7.092705s]
 bags have been stored at _vectorresults
 Fri Jun  4 17:16:40 EDT 2021
+
+% ./target/release/hipparchia_rust_dbhelper --sv --l 3 --p ${L} --svdb lt0474 --svs 4 --sve 100000
+Hipparchia Rust Helper CLI Debugging Interface (v.0.0.4)
+[HRH] requested the vector_prep() branch of the code
+[HRH] Seeking to build winnertakesall bags of words
+[HRH] dblines fetched [A: 305ms 756us 409ns]
+[HRH] txtlines block built [A2: 338ms 183us 699ns]
+[HRH] unified text block built [B: 347ms 16us 36ns]
+[HRH] preliminary cleanups complete [C: 371ms 803us 532ns]
+[HRH] splittext complete [C2: 398ms 774us 892ns]
+[HRH] found 44447 sentences [D: 598ms 99us 630ns]
+[HRH] found 67447 words [E: 670ms 275us 573ns]
+l: 67220; g: 227
+
+
