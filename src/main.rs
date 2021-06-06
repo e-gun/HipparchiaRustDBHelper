@@ -68,6 +68,11 @@ struct MorphPossibility {
     ana: String,
 }
 
+struct SentenceWithLocus {
+    l: String,
+    s: String,
+}
+
 fn main() {
     println!("{} CLI Debugging Interface (v.{})", MYNAME, VERSION);
     // cli stuff
@@ -425,7 +430,7 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
     // [e] figure out all of the words used in the passage
 
     let sentences: Vec<&str> = sentenceswithlocus.keys().map(|x| sentenceswithlocus[x].as_str()).collect();
-    let allwords: Vec<&str> = sv_findallwords(sentences);
+    let allwords: Vec<&str> = sv_findallwords(sentences.clone());
 
     let duration = start.elapsed();
     let m = format!("found {} words [E: {}]", allwords.len(), format_duration(duration).to_string());
@@ -488,9 +493,35 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
         }
     }
 
+    // no need for the "bool" any longer; demap things
+
+    let mut mm: HashMap<String, Vec<&str>> = HashMap::new();
+    for m in morphmap.keys() {
+        mm.insert(m.to_string(), morphmap[m].keys().map(|k| k.as_str()).collect());
+    }
+
     let duration = start.elapsed();
     let m = format!("Built morphmap [G: {}]", format_duration(duration).to_string());
     lfl(m, ll, 2);
+
+    // [h] build the lemmatized bags of words
+
+    if b == "flat" {
+        let bagged: Vec<String> = sv_buildflatbags(sentences.to_owned(), mm);
+    } else if b == "alternates" {
+        let bagged: Vec<String> = sv_buildcompositebags(sentences.to_owned(), mm);
+    } else if b == "winnertakesall" {
+        let bagged: Vec<String> = sv_buildwinnertakesallbags(sentences.to_owned(), mm);
+    } else {
+        // should never hit this but...
+        let bagged: Vec<String> = sentences.iter().map(|s| s.to_string()).collect();
+    }
+
+    // [i] purge stopwords
+
+
+    // [j] store...
+
 
     std::process::exit(1);
 }
@@ -616,6 +647,7 @@ fn ws_fields<'a>() ->  Vec<&'a str> {
 
 fn db_sv_get_morphobjects(words: &mut Vec<&str>, lang: &str, pg: &mut postgres::Client) -> Vec<DbMorphology> {
     // look for the upper case matches too: Ϲωκράτηϲ and not just ϲωκρατέω (!)
+    // let start = Instant::now();
 
     let mut wordswithcaps: Vec<String> = words.iter().map(|w| str_cap(w)).collect();
     let mut w = words.iter().map(|w| w.to_string()).collect();
@@ -630,6 +662,10 @@ fn db_sv_get_morphobjects(words: &mut Vec<&str>, lang: &str, pg: &mut postgres::
     let ttarr = wordswithcaps.join("', '");
     let ttarr = format!("'{}'", ttarr);
     let t = format!("CREATE TEMPORARY TABLE ttw_{} AS SELECT words AS w FROM unnest(ARRAY[{}]) words", &rndid, ttarr);
+
+    // let duration = start.elapsed();
+    // let m = format!("TT [α: {}]", format_duration(duration).to_string());
+    // lfl(m, 0, 0);
 
     // println!("{}", &t);
     pg.execute(t.as_str(), &[]).ok().expect("db_arraytogetrequiredmorphobjects() TempTable creation failed");
@@ -647,6 +683,11 @@ fn db_sv_get_morphobjects(words: &mut Vec<&str>, lang: &str, pg: &mut postgres::
             rpo: row.get("possible_dictionary_forms"),
             upo: sv_updatesetofpossibilities(row.get("possible_dictionary_forms"), POSS.clone()),
         }).collect::<Vec<DbMorphology>>();
+
+    // let duration = start.elapsed();
+    // let m = format!("DBMO [β: {}]", format_duration(duration).to_string());
+    // lfl(m, 0, 0);
+
     dbmo
 }
 
@@ -803,6 +844,44 @@ fn sv_buildsentences(splittext: Vec<&str>) -> HashMap<String, String> {
     sentenceswithlocus
 }
 
+fn sv_buildflatbags(s: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String> {
+    // turn a list of sentences into a list of list of headwords; here we put alternate possibilities next to one another:
+    // flatbags: ϲυγγενεύϲ ϲυγγενήϲ
+    // composite: ϲυγγενεύϲ·ϲυγγενήϲ
+
+    let hollow: Vec<String> = Vec::new();
+    hollow
+}
+
+fn sv_buildcompositebags(s: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String> {
+    // turn a list of sentences into a list of list of headwords; here we put yoked alternate possibilities next to one another:
+    // flatbags: ϲυγγενεύϲ ϲυγγενήϲ
+    // composite: ϲυγγενεύϲ·ϲυγγενήϲ
+    let hollow: Vec<String> = Vec::new();
+    hollow
+}
+
+fn sv_buildwinnertakesallbags(s: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String> {
+    // turn a list of sentences into a list of list of headwords; here we figure out which headword is the dominant homonym
+    // then we just use that term; "esse" always comes from "sum" and never "edo", etc.
+
+    // [a] figure out all headwords in use
+
+    // [b] assign scores to each of them
+
+    // [c] note that there are capital words in here that need lowering
+    // [c1] lower the internal values first
+
+    // [c2] lower the keys; how worried should we be about the collisions...
+
+    // [d] run through the parser map and kill off the losers
+
+    // [e] now you can just sv_buildflatbags() with the new pruned parser map
+
+    let hollow: Vec<String> = Vec::new();
+    hollow
+}
+
 fn sv_findallwords(sentences: Vec<&str>) -> Vec<&str> {
     let mut allwords: HashMap<&str, bool> = HashMap::new();
     for s in sentences {
@@ -862,20 +941,33 @@ fn sv_getpossiblemorph(ob: String, po: String, re: Regex) -> MorphPossibility {
     // 5: 9
     // 6: <transl>A. pretty; B. every thing beautiful; A. Gallant; B. good</transl><analysis>masc nom/voc pl</analysis>
 
-    let c = re.captures(po.as_str()).unwrap();
-    let n = c.get(2).map_or("", |m| m.as_str());
-    let e = c.get(3).map_or("", |m| m.as_str());
-    let x = c.get(4).map_or("", |m| m.as_str());
-    let a = c.get(6).map_or("", |m| m.as_str());
-
-    let mp: MorphPossibility = MorphPossibility {
-        obs: ob,
-        num: n.to_string(),
-        ent: e.to_string(),
-        xrf: x.to_string(),
-        ana: a.to_string(),
-    };
-    mp
+    let c = re.captures(po.as_str());
+    match c {
+        Some(v) => {
+            let n = v.get(2).map_or("", |m| m.as_str());
+            let e = v.get(3).map_or("", |m| m.as_str());
+            let x = v.get(4).map_or("", |m| m.as_str());
+            let a = v.get(6).map_or("", |m| m.as_str());
+            let mp: MorphPossibility = MorphPossibility {
+                obs: ob,
+                num: n.to_string(),
+                ent: e.to_string(),
+                xrf: x.to_string(),
+                ana: a.to_string(),
+            };
+            return mp
+        }
+        None => {
+            let mp: MorphPossibility = MorphPossibility {
+                obs: ob,
+                num: "".to_string(),
+                ent: "".to_string(),
+                xrf: "".to_string(),
+                ana: "".to_string(),
+            };
+            return mp
+        }
+    }
 }
 
 fn postgresconnect(j: String) -> postgres::Client {
