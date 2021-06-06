@@ -456,11 +456,16 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
         static ref POSSPARSE: Regex = Regex::new("(<possibility_([0-9]{1,2})>)(.*?)<xref_value>(.*?)</xref_value><xref_kind>(.*?)</xref_kind>(.*?)</possibility_[0-9]{1,2}>").unwrap();
         }
 
+    // for m in mo.keys() {
+    //     println!("{}", m);
+    // }
+
     let mut morphmap: HashMap<String, HashMap<String, bool>> = HashMap::new();
+
     for m in mo.keys() {
         // unpack the unique possibilities
         let pp: Vec<MorphPossibility> = mo[m].upo.keys().into_iter()
-            .map(|k| sv_getpossiblemorph(k.to_string(), m.clone(), POSSPARSE.clone()))
+            .map(|k| sv_getpossiblemorph(m.clone(), k.to_string(),POSSPARSE.clone()))
             .collect();
         // add them to the collection of possibilities or generate a new slot for them in the collection
         for p in pp {
@@ -492,6 +497,10 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
             }
         }
     }
+
+    // for m in morphmap.keys() {
+    //     println!("{}", m);
+    // }
 
     // no need for the "bool" any longer; demap things
 
@@ -844,21 +853,63 @@ fn sv_buildsentences(splittext: Vec<&str>) -> HashMap<String, String> {
     sentenceswithlocus
 }
 
-fn sv_buildflatbags(s: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String> {
+fn sv_buildflatbags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String> {
     // turn a list of sentences into a list of list of headwords; here we put alternate possibilities next to one another:
     // flatbags: ϲυγγενεύϲ ϲυγγενήϲ
     // composite: ϲυγγενεύϲ·ϲυγγενήϲ
+    let re = Regex::new(" {2,}").unwrap();
 
-    let hollow: Vec<String> = Vec::new();
-    hollow
+    let swapper = |sent: &str| {
+        let words: Vec<&str> = sent.split_whitespace().collect();
+        let mut newwords: Vec<&str> = Vec::new();
+        for w in words {
+            if mm.contains_key(w) {
+                let mut unpacked: Vec<&str> = mm[w].clone();
+                println!("{}: {:?}", w, unpacked);
+                newwords.append(&mut unpacked);
+            }
+        }
+        let newsent: String = newwords.join(" ");
+        let newsent = re.replace_all(&newsent, " ").into_owned();
+        // println!("{}", newsent);
+        newsent
+    };
+
+    let bagged:Vec<String> = ss.iter()
+        .map(|s| swapper(s) )
+        .collect();
+
+    bagged
 }
 
-fn sv_buildcompositebags(s: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String> {
+fn sv_buildcompositebags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String> {
     // turn a list of sentences into a list of list of headwords; here we put yoked alternate possibilities next to one another:
     // flatbags: ϲυγγενεύϲ ϲυγγενήϲ
     // composite: ϲυγγενεύϲ·ϲυγγενήϲ
-    let hollow: Vec<String> = Vec::new();
-    hollow
+    println!("sv_buildcompositebags");
+    let re = Regex::new(" {2,}").unwrap();
+
+    let swapper = |sent: &str| {
+        let words: Vec<&str> = sent.split_whitespace().collect();
+        let mut newwords: Vec<String> = Vec::new();
+        for w in words {
+            if mm.contains_key(w) {
+                let yoked = mm[w].clone().join("+");
+                println!("{}: {}", w, yoked);
+                newwords.push(yoked.clone());
+            }
+        }
+        let newsent: String = newwords.join(" ");
+        let newsent = re.replace_all(&newsent, " ").into_owned();
+        println!("{}", newsent);
+        newsent
+    };
+
+    let bagged:Vec<String> = ss.iter()
+        .map(|s| swapper(s) )
+        .collect();
+
+    bagged
 }
 
 fn sv_buildwinnertakesallbags(s: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String> {
@@ -948,6 +999,11 @@ fn sv_getpossiblemorph(ob: String, po: String, re: Regex) -> MorphPossibility {
             let e = v.get(3).map_or("", |m| m.as_str());
             let x = v.get(4).map_or("", |m| m.as_str());
             let a = v.get(6).map_or("", |m| m.as_str());
+
+            // note that in [3] you need to take the second half after the comma: "bellus" and not "bellī, bellus"
+            let mut ee: Vec<&str> = e.split(",").collect();
+            let e = ee.pop().unwrap_or("");
+
             let mp: MorphPossibility = MorphPossibility {
                 obs: ob,
                 num: n.to_string(),
