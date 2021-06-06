@@ -6,10 +6,8 @@
 use std::{net::TcpListener, thread::spawn};
 use std::{thread, time};
 use std::collections::HashMap;
-use std::convert::TryInto;
-use std::env::vars_os;
 use std::net::TcpStream;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Instant};
 
 use clap::{App, Arg, ArgMatches};
 use humantime::format_duration;
@@ -29,7 +27,6 @@ static TESTDB: &str = "lt0448";
 static TESTSTART: &str = "1";
 static TESTEND: &str = "26";
 static TESTKEY: &str = "rusttest";
-static LINELENGTH: u32 = 72;
 static WORKERSDEFAULT: &str = "5";
 static HITSDEFAULT: &str = "200";
 static PSQ: &str = r#"{"Host": "localhost", "Port": 5432, "User": "hippa_wr", "Pass": "", "DBName": "hipparchiaDB"}"#;
@@ -68,9 +65,14 @@ struct MorphPossibility {
     ana: String,
 }
 
-struct SentenceWithLocus {
-    l: String,
-    s: String,
+// struct SentenceWithLocus {
+//     l: String,
+//     s: String,
+// }
+
+struct WeightedHeadword {
+    wd: String,
+    ct: i32,
 }
 
 fn main() {
@@ -213,7 +215,7 @@ fn main() {
         let workpile = rs_scard(&thiskey, &mut redisconn);
 
         thiskey = format!("{}_poolofwork", &thekey);
-        rs_set_str(&thiskey, &workpile.to_string(), &mut redisconn);
+        rs_set_str(&thiskey, &workpile.to_string(), &mut redisconn).unwrap();
 
         // dispatch the workers
         // https://averywagar.com/post/multithreading-rust/
@@ -225,7 +227,7 @@ fn main() {
                     let k = a.value_of("k").unwrap();
                     let pg = a.value_of("p").unwrap();
                     let rc = a.value_of("r").unwrap();
-                    grabworker(Uuid::new_v4(), &cap.clone(), &k, &pg, &rc);
+                    grabworker(Uuid::new_v4(), &cap.clone(), &k, &pg, &rc).unwrap();
                 })
             })
             .collect::<Vec<thread::JoinHandle<_>>>();
@@ -266,7 +268,7 @@ fn grabworker(id: Uuid, cap: &i32, thekey: &str, pg: &str, rc: &str) -> Result<(
         let w = workpile.to_string();
 
         let thiskey = format!("{}_remaining", &thekey);
-        rs_set_str(&thiskey, w.as_str(), &mut redisconn);
+        rs_set_str(&thiskey, w.as_str(), &mut redisconn).unwrap();
 
         // [c] decode the query
         let parsed = json::parse(j.as_str()).unwrap();
@@ -304,13 +306,13 @@ fn grabworker(id: Uuid, cap: &i32, thekey: &str, pg: &str, rc: &str) -> Result<(
             let hits = rs_scard(&thiskey, &mut redisconn);
 
             if hits >= *cap {
-                rs_del(&thekey, &mut redisconn);
+                rs_del(&thekey, &mut redisconn).unwrap();
                 break;
             } else {
                 let mut thiskey = format!("{}_results", &thekey);
-                rs_sadd(&thiskey, &data.dump(), &mut redisconn);
+                rs_sadd(&thiskey, &data.dump(), &mut redisconn).unwrap();
                 thiskey = format!("{}_hitcount", &thekey);
-                rs_set_int(&thiskey, hits + 1, &mut redisconn);
+                rs_set_int(&thiskey, hits + 1, &mut redisconn).unwrap();
             }
         }
     }
@@ -344,9 +346,9 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
 
     // turn of progress logging
     let thiskey = format!("{}_poolofwork", &k);
-    rs_set_int(&thiskey, -1, &mut rc);
+    rs_set_int(&thiskey, -1, &mut rc).unwrap();
     let thiskey = format!("{}_hitcount", &k);
-    rs_set_int(&thiskey, 0, &mut rc);
+    rs_set_int(&thiskey, 0, &mut rc).unwrap();
 
     // [a] grab the db lines
     if &k == &"rusttest" {
@@ -469,8 +471,7 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
             .collect();
         // add them to the collection of possibilities or generate a new slot for them in the collection
         for p in pp {
-            let mut y: HashMap<String, bool> = HashMap::new();
-            y.insert(p.ent.clone(), true);
+
             if morphmap.contains_key(&p.obs) {
                 // X is already present in 'morphdict'; need to add this headword to the set of headwords
 
@@ -489,10 +490,12 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
                 // assert_eq!(map[&1], "b");
 
                 if let Some(x) = morphmap.get_mut(&p.obs) {
-                    *x = y;
+                    x.insert(p.ent.clone(), true);
                 }
             } else {
                 // initialize and insert...
+                let mut y: HashMap<String, bool> = HashMap::new();
+                y.insert(p.ent.clone(), true);
                 morphmap.insert(p.obs.clone(), y);
             }
         }
@@ -520,9 +523,10 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
     } else if b == "alternates" {
         let bagged: Vec<String> = sv_buildcompositebags(sentences.to_owned(), mm);
     } else if b == "winnertakesall" {
-        let bagged: Vec<String> = sv_buildwinnertakesallbags(sentences.to_owned(), mm);
+        let bagged: Vec<String> = sv_buildwinnertakesallbags(sentences.to_owned(), mm, &mut pg);
     } else {
         // should never hit this but...
+        println!("UNKNOWN BAGGING METHOD ['{}']; you will get 'unlemmatized' bags instead", b);
         let bagged: Vec<String> = sentences.iter().map(|s| s.to_string()).collect();
     }
 
@@ -865,7 +869,7 @@ fn sv_buildflatbags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String
         for w in words {
             if mm.contains_key(w) {
                 let mut unpacked: Vec<&str> = mm[w].clone();
-                println!("{}: {:?}", w, unpacked);
+                // println!("{}: {:?}", w, unpacked);
                 newwords.append(&mut unpacked);
             }
         }
@@ -879,6 +883,10 @@ fn sv_buildflatbags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String
         .map(|s| swapper(s) )
         .collect();
 
+    // for b in &bagged {
+    //     println!("{}", b);
+    // }
+
     bagged
 }
 
@@ -886,7 +894,7 @@ fn sv_buildcompositebags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<S
     // turn a list of sentences into a list of list of headwords; here we put yoked alternate possibilities next to one another:
     // flatbags: ϲυγγενεύϲ ϲυγγενήϲ
     // composite: ϲυγγενεύϲ·ϲυγγενήϲ
-    println!("sv_buildcompositebags");
+
     let re = Regex::new(" {2,}").unwrap();
 
     let swapper = |sent: &str| {
@@ -894,14 +902,13 @@ fn sv_buildcompositebags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<S
         let mut newwords: Vec<String> = Vec::new();
         for w in words {
             if mm.contains_key(w) {
-                let yoked = mm[w].clone().join("+");
+                let yoked = mm[w].clone().join("·");
                 println!("{}: {}", w, yoked);
                 newwords.push(yoked.clone());
             }
         }
         let newsent: String = newwords.join(" ");
         let newsent = re.replace_all(&newsent, " ").into_owned();
-        println!("{}", newsent);
         newsent
     };
 
@@ -909,28 +916,130 @@ fn sv_buildcompositebags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<S
         .map(|s| swapper(s) )
         .collect();
 
+    // for b in &bagged {
+    //     println!("{}", b);
+    // }
+
     bagged
 }
 
-fn sv_buildwinnertakesallbags(s: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String> {
+fn sv_buildwinnertakesallbags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>, pg: &mut postgres::Client) -> Vec<String> {
     // turn a list of sentences into a list of list of headwords; here we figure out which headword is the dominant homonym
     // then we just use that term; "esse" always comes from "sum" and never "edo", etc.
 
     // [a] figure out all headwords in use
 
+    let mut hwd: HashMap<String, bool> = HashMap::new();
+    for m in mm.keys() {
+        for p in &mm[m] {
+            hwd.insert(p.to_string(), true);
+        }
+    }
+
     // [b] assign scores to each of them
+    let wds: Vec<String> = mm.keys().map(|k| k.clone()).collect();
+    let scoremap: HashMap<String, i32> = db_fetchheadwordcounts(wds, pg);
 
     // [c] note that there are capital words in here that need lowering
     // [c1] lower the internal values first
 
-    // [c2] lower the keys; how worried should we be about the collisions...
+    let mut lchwd: HashMap<String, bool> = HashMap::new();
+    for k in hwd.keys() {
+        lchwd.insert(str_lcs(k), true);
+    }
+
+    // [c2] lower the scoremap keys; how worried should we be about the collisions...
+
+    let mut lcscoremap: HashMap<String, i32> = HashMap::new();
+    for k in hwd.keys() {
+        if scoremap.contains_key(k) {
+            lcscoremap.insert(str_lcs(k), scoremap[k]);
+        }
+        // lcscoremap.insert(format!("{}{}", k.chars().next().unwrap().to_lowercase(), k.chars().skip(1).collect::<String>()).as_str().clone().unwrap(), scoremap[k]);
+    }
 
     // [d] run through the parser map and kill off the losers
 
-    // [e] now you can just sv_buildflatbags() with the new pruned parser map
+    let mut newparsemap: HashMap<String, String> = HashMap::new();
+    for w in lchwd.keys() {
+            if mm.contains_key(w) {
+                let mut poss: Vec<String> = mm[w].iter()
+                    .map(|k| k.to_string())
+                    .collect();
+                poss.sort_by_key(|k| if scoremap.contains_key(k) { lcscoremap[k] } else { 0 });
+                // poss.resize(1, "".to_string());
+                newparsemap.insert(w.clone(), poss.pop().unwrap());
+            } else {
+                newparsemap.insert(w.clone(), w.clone());
+            }
+    }
 
-    let hollow: Vec<String> = Vec::new();
-    hollow
+    // let mut newparsemap: HashMap<String, Vec<&str>> = HashMap::new();
+    // for w in lchwd.keys() {
+    //     &mm[w].sort_by_key(|k| &lcscoremap[k]);
+    //     newparsemap.insert(w.clone(), mm[w].clone());
+    // }
+
+    // [e] now just swap out the words: key points to right new values
+
+    let re = Regex::new(" {2,}").unwrap();
+
+    let swapper = |sent: &str| {
+        let words: Vec<&str> = sent.split_whitespace().collect();
+        let mut newwords: Vec<String> = Vec::new();
+        for w in words {
+            if newparsemap.contains_key(w) {
+                newwords.push(newparsemap[w].clone());
+            }
+        }
+        let newsent: String = newwords.join(" ");
+        let newsent = re.replace_all(&newsent, " ").into_owned();
+        newsent
+    };
+
+    let bagged = ss.iter().map(|s| swapper(s) )
+        .collect();
+
+    for b in &bagged {
+        println!("{}", b);
+    }
+
+    bagged
+}
+
+fn db_fetchheadwordcounts(hw: Vec<String>, pg: &mut postgres::Client) -> HashMap<String, i32> {
+
+    let mut rndid = Uuid::new_v4().to_string();
+    rndid.retain(|c| c != '-');
+
+    let ttarr = format!("'{}'", hw.join("', '"));
+    let t = format!("CREATE TEMPORARY TABLE ttw_{} AS SELECT words AS w FROM unnest(ARRAY[{}]) words", &rndid, ttarr);
+    pg.execute(t.as_str(), &[]).ok().expect("db_fetchheadwordcounts() TempTable creation failed");
+
+    let q = format!("SELECT entry_name, total_count FROM dictionary_headword_wordcounts WHERE EXISTS (SELECT 1 FROM ttw_{} temptable WHERE temptable.w = dictionary_headword_wordcounts.entry_name)", rndid);
+
+    let whwvec: Vec<WeightedHeadword> = pg.query(q.as_str(), &[]).unwrap().into_iter()
+        .map(|row| WeightedHeadword {
+            wd: row.get("entry_name"),
+            ct: row.get("total_count"),
+        })
+        .collect::<Vec<WeightedHeadword>>();
+
+    let mut wtwhhm: HashMap<String, i32> = HashMap::new();
+
+    for w in whwvec {
+        wtwhhm.insert(w.wd, w.ct);
+    }
+
+    // don't kill off unfound terms
+    for k in hw {
+        if wtwhhm.contains_key(k.as_str()) {
+            continue;
+        } else {
+            wtwhhm.insert(k.clone(), 0);
+        }
+    };
+    wtwhhm
 }
 
 fn sv_findallwords(sentences: Vec<&str>) -> Vec<&str> {
@@ -958,7 +1067,8 @@ fn sv_getrequiredmorphobjects(words: Vec<&str>, pg: &mut postgres::Client) -> Ha
             greekwords.push(w);
         }
     }
-    println!("l: {}; g: {}", latinwords.len(), greekwords.len());
+
+    // println!("l: {}; g: {}", latinwords.len(), greekwords.len());
 
     let mut morph: Vec<DbMorphology> = db_sv_get_morphobjects(&mut latinwords, "latin", pg);
     let mut grmorph: Vec<DbMorphology> = db_sv_get_morphobjects(&mut greekwords, "greek", pg);
@@ -1002,7 +1112,7 @@ fn sv_getpossiblemorph(ob: String, po: String, re: Regex) -> MorphPossibility {
 
             // note that in [3] you need to take the second half after the comma: "bellus" and not "bellī, bellus"
             let mut ee: Vec<&str> = e.split(",").collect();
-            let e = ee.pop().unwrap_or("");
+            let e = ee.pop().unwrap_or("").trim();
 
             let mp: MorphPossibility = MorphPossibility {
                 obs: ob,
@@ -1064,6 +1174,12 @@ fn make_ascii_title_case(s: &mut str) {
 fn str_cap(s: &str) -> String {
     // if we are not using ascii strings...
     format!("{}{}", s.chars().next().unwrap().to_uppercase(),
+            s.chars().skip(1).collect::<String>())
+}
+
+fn str_lcs(s: &str) -> String {
+    // if we are not using ascii strings...
+    format!("{}{}", s.chars().next().unwrap().to_lowercase(),
             s.chars().skip(1).collect::<String>())
 }
 
