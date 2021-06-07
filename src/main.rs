@@ -518,24 +518,48 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
 
     // [h] build the lemmatized bags of words
 
+    let mut bagged: Vec<String> = Vec::new();
+
     if b == "flat" {
-        let bagged: Vec<String> = sv_buildflatbags(sentences.to_owned(), mm);
+        bagged = sv_buildflatbags(sentences.to_owned(), mm);
     } else if b == "alternates" {
-        let bagged: Vec<String> = sv_buildcompositebags(sentences.to_owned(), mm);
+        bagged =  sv_buildcompositebags(sentences.to_owned(), mm);
     } else if b == "winnertakesall" {
-        let bagged: Vec<String> = sv_buildwinnertakesallbags(sentences.to_owned(), mm, &mut pg);
+        bagged =  sv_buildwinnertakesallbags(sentences.to_owned(), mm, &mut pg);
     } else {
         // should never hit this but...
         println!("UNKNOWN BAGGING METHOD ['{}']; you will get 'unlemmatized' bags instead", b);
-        let bagged: Vec<String> = sentences.iter().map(|s| s.to_string()).collect();
+        bagged =  sentences.iter().map(|s| s.to_string()).collect();
     }
+
+    let duration = start.elapsed();
+    let m = format!("Built {} bags [H: {}]", bagged.len(), format_duration(duration).to_string());
+    lfl(m, ll, 2);
 
     // [i] purge stopwords
 
+    let skipheadwords = "unus verum omne sum¹ ab δύο πρότεροϲ ἄνθρωποϲ τίϲ δέω¹ ὅϲτιϲ homo πᾶϲ οὖν εἶπον ἠμί ἄν² tantus μένω μέγαϲ οὐ verus neque eo¹ nam μέν ἡμόϲ aut Sue διό reor ut ἐγώ is πωϲ ἐκάϲ enim ὅτι² παρά ἐν Ἔχιϲ sed ἐμόϲ οὐδόϲ ad de ita πηρόϲ οὗτοϲ an ἐπεί a γάρ αὐτοῦ ἐκεῖνοϲ ἀνά ἑαυτοῦ quam αὐτόϲε et ὑπό quidem Alius¹ οἷοϲ noster γίγνομαι ἄνα προϲάμβ ἄν¹ οὕτωϲ pro² tamen ἐάν atque τε qui² si do multus λόγοϲ idem οὐδέ ἐκ omnes γε causa δεῖ πολύϲ in ἔδω ὅτι¹ μή Ios ἕτεροϲ cum meus ὅλοξ suus omnis ὡϲ sua μετά Ἀλλά ne¹ jam εἰϲ ἤ² ἄναξ ἕ ὅϲοϲ dies ipse ὁ hic οὐδείϲ suo ἔτι ἄνω¹ ὅϲ νῦν ὁμοῖοϲ edo¹ εἰ qui¹ πάλιν ὥϲπερ ne³ ἵνα τιϲ διά φύω per τοιοῦτοϲ for eo² huc locum neo¹ sui non ἤ¹ χάω ex κατά δή ἁμόϲ dico² ὅμοιοϲ αὐτόϲ etiam vaco πρόϲ Ζεύϲ ϲύ quis¹ tuus b εἷϲ Eos οὔτε τῇ καθά ego tu ille pro¹ ἀπό suum εἰμί ἄλλοϲ δέ alius² pars vel ὥϲτε χέω res ἡμέρα quo δέομαι modus ὑπέρ ϲόϲ ito τῷ περί Τήιοϲ ἕκαϲτοϲ autem καί ἐπί nos θεάω γάρον γάροϲ Cos²";
+    let skipinflected = "ita a inquit ego die nunc nos quid πάντων ἤ με θεόν δεῖ for igitur ϲύν b uers p ϲου τῷ εἰϲ ergo ἐπ ὥϲτε sua me πρό sic aut nisi rem πάλιν ἡμῶν φηϲί παρά ἔϲτι αὐτῆϲ τότε eos αὐτούϲ λέγει cum τόν quidem ἐϲτιν posse αὐτόϲ post αὐτῶν libro m hanc οὐδέ fr πρῶτον μέν res ἐϲτι αὐτῷ οὐχ non ἐϲτί modo αὐτοῦ sine ad uero fuit τοῦ ἀπό ea ὅτι parte ἔχει οὔτε ὅταν αὐτήν esse sub τοῦτο i omnes break μή ἤδη ϲοι sibi at mihi τήν in de τούτου ab omnia ὃ ἦν γάρ οὐδέν quam per α autem eius item ὡϲ sint length οὗ λόγον eum ἀντί ex uel ἐπειδή re ei quo ἐξ δραχμαί αὐτό ἄρα ἔτουϲ ἀλλ οὐκ τά ὑπέρ τάϲ μάλιϲτα etiam haec nihil οὕτω siue nobis si itaque uac erat uestig εἶπεν ἔϲτιν tantum tam nec unde qua hoc quis iii ὥϲπερ semper εἶναι e ½ is quem τῆϲ ἐγώ καθ his θεοῦ tibi ubi pro ἄν πολλά τῇ πρόϲ l ἔϲται οὕτωϲ τό ἐφ ἡμῖν οἷϲ inter idem illa n se εἰ μόνον ac ἵνα ipse erit μετά μοι δι γε enim ille an sunt esset γίνεται omnibus ne ἐπί τούτοιϲ ὁμοίωϲ παρ causa neque cr ἐάν quos ταῦτα h ante ἐϲτίν ἣν αὐτόν eo ὧν ἐπεί οἷον sed ἀλλά ii ἡ t te ταῖϲ est sit cuius καί quasi ἀεί o τούτων ἐϲ quae τούϲ minus quia tamen iam d διά primum r τιϲ νῦν illud u apud c ἐκ δ quod f quoque tr τί ipsa rei hic οἱ illi et πῶϲ φηϲίν τοίνυν s magis unknown οὖν dum text μᾶλλον λόγοϲ habet τοῖϲ qui αὐτοῖϲ suo πάντα uacat τίϲ pace ἔχειν οὐ κατά contra δύο ἔτι αἱ uet οὗτοϲ deinde id ut ὑπό τι lin ἄλλων τε tu ὁ cf δή potest ἐν eam tum μου nam θεόϲ κατ ὦ cui nomine περί atque δέ quibus ἡμᾶϲ τῶν eorum";
+
+    let bagged = sv_dropstopwords(skipheadwords, bagged);
+    println!("{} bags", bagged.len());
+    let bagged = sv_dropstopwords(skipinflected, bagged);
+
+    let duration = start.elapsed();
+    let m = format!("Purged stopwords in {} bags [I: {}]", bagged.len(), format_duration(duration).to_string());
+    lfl(m, ll, 2);
 
     // [j] store...
 
+    let resultkey = format!("{}_vectorresults", &k);
+    let bl = bagged.len();
+    sv_loadthebags(resultkey.clone(), bagged, &mut rc);
 
+    let duration = start.elapsed();
+    let m = format!("Stored {} bags [J: {}]", bl, format_duration(duration).to_string());
+    lfl(m, ll, 2);
+
+    println!("{}", resultkey);
     std::process::exit(1);
 }
 
@@ -1000,9 +1024,9 @@ fn sv_buildwinnertakesallbags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>, pg:
     let bagged = ss.iter().map(|s| swapper(s) )
         .collect();
 
-    for b in &bagged {
-        println!("{}", b);
-    }
+    // for b in &bagged {
+    //     println!("{}", b);
+    // }
 
     bagged
 }
@@ -1080,6 +1104,41 @@ fn sv_getrequiredmorphobjects(words: Vec<&str>, pg: &mut postgres::Client) -> Ha
         mo.insert(m.obs.clone(), m.clone());
     }
     mo
+}
+
+fn sv_dropstopwords(todrop: &str, bags: Vec<String>) -> Vec<String> {
+
+    let vv: Vec<&str> = todrop.split_whitespace().collect();
+    let mut hm: HashMap<&str, bool> = HashMap::new();
+    for v in vv { hm.insert(v, true); }
+
+    let mut cleaned: Vec<String> = Vec::new();
+    for b in bags {
+        let ww: Vec<&str> = b.split_whitespace().collect();
+        let mut ns: Vec<&str> = Vec::new();
+        for w in ww {
+            if hm.contains_key(w) == false {
+                ns.push(w);
+            }
+        }
+        cleaned.push(ns.join(" "));
+    }
+
+    let mut r: Vec<String> = Vec::new();
+    r
+}
+
+fn sv_loadthebags(key: String, bags: Vec<String>, c: &mut redis::Connection) {
+    for b in bags {
+        println!("{}", b);
+        // rs_sadd(key.as_str(), b.as_str(), c);
+        let _: String = redis::cmd("SADD")
+            .arg(&key)
+            .arg(b)
+            .query(c).unwrap();
+
+        // c.sadd(key.as_str(), b.as_str()).unwrap();
+    }
 }
 
 fn sv_getpossiblemorph(ob: String, po: String, re: Regex) -> MorphPossibility {
