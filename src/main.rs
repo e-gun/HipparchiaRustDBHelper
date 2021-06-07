@@ -7,6 +7,7 @@ use std::{net::TcpListener, thread::spawn};
 use std::{thread, time};
 use std::collections::HashMap;
 use std::net::TcpStream;
+use std::convert::TryFrom;
 use std::time::{Instant};
 
 use clap::{App, Arg, ArgMatches};
@@ -18,6 +19,7 @@ use redis::Commands;
 use regex::Regex;
 use tungstenite::{accept_hdr, handshake::server::{Request, Response}, Message, WebSocket};
 use uuid::Uuid;
+
 
 static MYNAME: &str = "Hipparchia Rust Helper";
 static SHORTNAME: &str = "HRH";
@@ -319,7 +321,7 @@ fn grabworker(id: Uuid, cap: &i32, thekey: &str, pg: &str, rc: &str) -> Result<(
     Ok(())
 }
 
-fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq: &str, rc: &str) {
+fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll: i32, psq: &str, rca: &str) {
     // VECTOR PREP builds bags for modeling; to do this you need to...
     //
     // [a] grab db lines that are relevant to the search
@@ -341,23 +343,23 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
     let m = format!("Seeking to build {} bags of words", &b);
     lfl(m, ll, 1);
 
-    let mut rc = redisconnect(rc.to_string());
+    let mut rc = redisconnect(rca.to_string());
     let mut pg = postgresconnect(psq.to_string());
 
     // turn of progress logging
-    let thiskey = format!("{}_poolofwork", &k);
+    let thiskey = format!("{}_poolofwork", &thekey);
     rs_set_int(&thiskey, -1, &mut rc).unwrap();
-    let thiskey = format!("{}_hitcount", &k);
+    let thiskey = format!("{}_hitcount", &thekey);
     rs_set_int(&thiskey, 0, &mut rc).unwrap();
 
     // [a] grab the db lines
-    if &k == &"rusttest" {
+    if &thekey == &"rusttest" {
         let m = format!("No redis key; gathering lines with a direct CLI PostgreSQL query)");
         lfl(m, ll, 1);
         // otherwise we will mimic grabworker() pattern to aggregate the lines
     }
 
-    let dblines: Vec<DBLine> = match &k {
+    let dblines: Vec<DBLine> = match &thekey {
         // either db_directfetch()
         // otherwise we will mimic grabworker() pattern to aggregate the lines
         &"rusttest" => db_directfetch(db, s, e, &mut pg),
@@ -541,18 +543,26 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
     let skipheadwords = "unus verum omne sum¹ ab δύο πρότεροϲ ἄνθρωποϲ τίϲ δέω¹ ὅϲτιϲ homo πᾶϲ οὖν εἶπον ἠμί ἄν² tantus μένω μέγαϲ οὐ verus neque eo¹ nam μέν ἡμόϲ aut Sue διό reor ut ἐγώ is πωϲ ἐκάϲ enim ὅτι² παρά ἐν Ἔχιϲ sed ἐμόϲ οὐδόϲ ad de ita πηρόϲ οὗτοϲ an ἐπεί a γάρ αὐτοῦ ἐκεῖνοϲ ἀνά ἑαυτοῦ quam αὐτόϲε et ὑπό quidem Alius¹ οἷοϲ noster γίγνομαι ἄνα προϲάμβ ἄν¹ οὕτωϲ pro² tamen ἐάν atque τε qui² si do multus λόγοϲ idem οὐδέ ἐκ omnes γε causa δεῖ πολύϲ in ἔδω ὅτι¹ μή Ios ἕτεροϲ cum meus ὅλοξ suus omnis ὡϲ sua μετά Ἀλλά ne¹ jam εἰϲ ἤ² ἄναξ ἕ ὅϲοϲ dies ipse ὁ hic οὐδείϲ suo ἔτι ἄνω¹ ὅϲ νῦν ὁμοῖοϲ edo¹ εἰ qui¹ πάλιν ὥϲπερ ne³ ἵνα τιϲ διά φύω per τοιοῦτοϲ for eo² huc locum neo¹ sui non ἤ¹ χάω ex κατά δή ἁμόϲ dico² ὅμοιοϲ αὐτόϲ etiam vaco πρόϲ Ζεύϲ ϲύ quis¹ tuus b εἷϲ Eos οὔτε τῇ καθά ego tu ille pro¹ ἀπό suum εἰμί ἄλλοϲ δέ alius² pars vel ὥϲτε χέω res ἡμέρα quo δέομαι modus ὑπέρ ϲόϲ ito τῷ περί Τήιοϲ ἕκαϲτοϲ autem καί ἐπί nos θεάω γάρον γάροϲ Cos²";
     let skipinflected = "ita a inquit ego die nunc nos quid πάντων ἤ με θεόν δεῖ for igitur ϲύν b uers p ϲου τῷ εἰϲ ergo ἐπ ὥϲτε sua me πρό sic aut nisi rem πάλιν ἡμῶν φηϲί παρά ἔϲτι αὐτῆϲ τότε eos αὐτούϲ λέγει cum τόν quidem ἐϲτιν posse αὐτόϲ post αὐτῶν libro m hanc οὐδέ fr πρῶτον μέν res ἐϲτι αὐτῷ οὐχ non ἐϲτί modo αὐτοῦ sine ad uero fuit τοῦ ἀπό ea ὅτι parte ἔχει οὔτε ὅταν αὐτήν esse sub τοῦτο i omnes break μή ἤδη ϲοι sibi at mihi τήν in de τούτου ab omnia ὃ ἦν γάρ οὐδέν quam per α autem eius item ὡϲ sint length οὗ λόγον eum ἀντί ex uel ἐπειδή re ei quo ἐξ δραχμαί αὐτό ἄρα ἔτουϲ ἀλλ οὐκ τά ὑπέρ τάϲ μάλιϲτα etiam haec nihil οὕτω siue nobis si itaque uac erat uestig εἶπεν ἔϲτιν tantum tam nec unde qua hoc quis iii ὥϲπερ semper εἶναι e ½ is quem τῆϲ ἐγώ καθ his θεοῦ tibi ubi pro ἄν πολλά τῇ πρόϲ l ἔϲται οὕτωϲ τό ἐφ ἡμῖν οἷϲ inter idem illa n se εἰ μόνον ac ἵνα ipse erit μετά μοι δι γε enim ille an sunt esset γίνεται omnibus ne ἐπί τούτοιϲ ὁμοίωϲ παρ causa neque cr ἐάν quos ταῦτα h ante ἐϲτίν ἣν αὐτόν eo ὧν ἐπεί οἷον sed ἀλλά ii ἡ t te ταῖϲ est sit cuius καί quasi ἀεί o τούτων ἐϲ quae τούϲ minus quia tamen iam d διά primum r τιϲ νῦν illud u apud c ἐκ δ quod f quoque tr τί ipsa rei hic οἱ illi et πῶϲ φηϲίν τοίνυν s magis unknown οὖν dum text μᾶλλον λόγοϲ habet τοῖϲ qui αὐτοῖϲ suo πάντα uacat τίϲ pace ἔχειν οὐ κατά contra δύο ἔτι αἱ uet οὗτοϲ deinde id ut ὑπό τι lin ἄλλων τε tu ὁ cf δή potest ἐν eam tum μου nam θεόϲ κατ ὦ cui nomine περί atque δέ quibus ἡμᾶϲ τῶν eorum";
 
-    let bagged = sv_dropstopwords(skipheadwords, bagged);
-    let bagged = sv_dropstopwords(skipinflected, bagged);
+    let bagged: Vec<String> = sv_dropstopwords(skipheadwords, bagged);
+    let bagged: Vec<String> = sv_dropstopwords(skipinflected, bagged);
+
+    // no empty bags...
+    let mut bags: Vec<String> = Vec::new();
+    for b in bagged {
+        if b.len() > 0 {
+            bags.push(b);
+        }
+    }
 
     let duration = start.elapsed();
-    let m = format!("Purged stopwords in {} bags [I: {}]", bagged.len(), format_duration(duration).to_string());
+    let m = format!("Purged stopwords in {} bags [I: {}]", bags.len(), format_duration(duration).to_string());
     lfl(m, ll, 2);
 
     // [j] store...
 
-    let resultkey = format!("{}_vectorresults", &k);
-    let bl = bagged.len();
-    sv_loadthebags(resultkey.clone(), bagged, &mut rc);
+    let resultkey = format!("{}_vectorresults", &thekey);
+    let bl = bags.len();
+    sv_loadthebags(resultkey.clone(), bags, workers, rca);
 
     let duration = start.elapsed();
     let m = format!("Stored {} bags [J: {}]", bl, format_duration(duration).to_string());
@@ -817,12 +827,6 @@ fn rs_get(k: &str, c: &mut redis::Connection) -> String {
         Ok(s) => s,
         Err(_e) => "".to_string(),
     };
-
-    // if &p == &"" {
-    //     let m = format!("GET failed for '{}'; returning an empty string", k);
-    //     lfl(m, 0, 0)
-    // }
-
     p
 }
 
@@ -1127,9 +1131,49 @@ fn sv_dropstopwords(todrop: &str, bags: Vec<String>) -> Vec<String> {
     cleaned
 }
 
-fn sv_loadthebags(key: String, bags: Vec<String>, c: &mut redis::Connection) {
+fn sv_parallelbagloader(id: Uuid, key: String, bags: Vec<String>, c: &mut redis::Connection) {
+    println!("sv_parallelbagloader worker {} has {} bags", id.to_string(), bags.len());
     for b in bags {
+        println!("{}: {}", id.to_string(), &b);
         rs_sadd(key.as_str(), b.as_str(), c);
+    }
+}
+
+fn sv_loadthebags(key: String, mut bags: Vec<String>, workers: i32, rca: &str) {
+    let uworkers = usize::try_from(workers).unwrap();
+    let totalwork = bags.len();
+    let chunksize = totalwork / uworkers;
+
+    let mut bagmap: HashMap<i32, Vec<String>> = HashMap::new();
+
+    if totalwork <= uworkers {
+        println!("tinybags");
+        bagmap.insert(0, bags.drain(totalwork..).collect());
+    } else {
+        for i in 0..workers {
+            bagmap.insert(i, bags.drain(chunksize * usize::try_from(workers - i).unwrap()..).collect());
+        }
+    }
+
+    // leave no sentence behind! [note tha bags is perhaps already empty]
+    // add an extra worker with just this remainder in it
+    let mut tinybag: Vec<String> = bags.drain(bags.len()..).collect();
+    bagmap.insert(workers, tinybag);
+
+    let handles: Vec<thread::JoinHandle<_>> = (0..workers+1)
+        .map(|w| {
+            let thisbag = &bagmap[&w].clone();
+            let thisbag = thisbag.to_vec();
+            let mut rc = redisconnect(rca.to_string());
+            let k = key.clone();
+            thread::spawn( move || {
+                sv_parallelbagloader(Uuid::new_v4(), k, thisbag, &mut rc);
+            })
+        })
+        .collect::<Vec<thread::JoinHandle<_>>>();
+
+    for thread in handles {
+        thread.join().unwrap();
     }
 }
 
