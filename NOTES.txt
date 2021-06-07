@@ -83,19 +83,23 @@ Fri Jun  4 17:16:33 EDT 2021
 bags have been stored at _vectorresults
 Fri Jun  4 17:16:40 EDT 2021
 
-% ./target/release/hipparchia_rust_dbhelper --sv --l 3 --p ${L} --svdb lt0474 --svs 4 --sve 100000
-Hipparchia Rust Helper CLI Debugging Interface (v.0.0.4)
-[HRH] requested the vector_prep() branch of the code
-[HRH] Seeking to build winnertakesall bags of words
-[HRH] dblines fetched [A: 305ms 756us 409ns]
-[HRH] txtlines block built [A2: 338ms 183us 699ns]
-[HRH] unified text block built [B: 347ms 16us 36ns]
-[HRH] preliminary cleanups complete [C: 371ms 803us 532ns]
-[HRH] splittext complete [C2: 398ms 774us 892ns]
-[HRH] found 44447 sentences [D: 598ms 99us 630ns]
-[HRH] found 67447 words [E: 670ms 275us 573ns]
-l: 67220; g: 227
+% ./target/release/hipparchia_rust_dbhelper  --sv --l 3 --p ${L} --svdb lt0474 --svs 4 --sve 100000
+  Hipparchia Rust Helper CLI Debugging Interface (v.0.0.4)
+  [HRH] requested the vector_prep() branch of the code
+  [HRH] Seeking to build winnertakesall bags of words
+  [HRH] No redis key; gathering lines with a direct CLI PostgreSQL query)
+  [HRH] dblines fetched [A: 351ms 497us 55ns]
+  [HRH] unified text block built [B: 392ms 610us 712ns]
+  [HRH] preliminary cleanups complete [C: 416ms 774us 487ns]
+  [HRH] found 44447 sentences [D: 643ms 367us 938ns]
+  [HRH] found 64971 words [E: 721ms 293us 431ns]
+  [HRH] found 54464 morphology objects [F: 6s 594ms 658us 949ns]
+  [HRH] Built morphmap [G: 29s 157ms 980us 115ns]
+  [HRH] Built 44447 bags [H: 30s 999ms 807us 997ns]
+  [HRH] Purged stopwords in 35208 bags [I: 31s 59ms 901us 493ns]
+  [HRH] Stored 35208 bags [J: 31s 998ms 776us 682ns]
 
+the slowdown is effectively postgres: need a pooled connection
 
 sentences broken up by things like the Q in "Eloquentia Q. Hortensi ne me in dicendo impediat, non..."
 so should implement the deabbreviator to fix that...

@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 static MYNAME: &str = "Hipparchia Rust Helper";
 static SHORTNAME: &str = "HRH";
-static VERSION: &str = "0.0.4";
+static VERSION: &str = "0.0.5";
 static POLLINGINTERVAL: time::Duration = time::Duration::from_millis(400);
 static TESTDB: &str = "lt0448";
 static TESTSTART: &str = "1";
@@ -685,6 +685,7 @@ fn ws_jsonifyresults(rediskey: &str, pd: HashMap<String, String>) -> json::JsonV
 }
 
 fn ws_fields<'a>() ->  Vec<&'a str> {
+    // return the fields we are using
     // be careful about the key capitalization issue: go has "Active", etc.
     let fld = "launchtime active statusmessage remaining poolofwork hitcount portnumber notes";
     let v: Vec<&str> = fld.split_whitespace().collect();
@@ -692,6 +693,7 @@ fn ws_fields<'a>() ->  Vec<&'a str> {
 }
 
 fn db_sv_get_morphobjects(words: &mut Vec<&str>, lang: &str, pg: &mut postgres::Client) -> Vec<DbMorphology> {
+    // the worker for sv_getrequiredmorphobjects()
     // look for the upper case matches too: Ϲωκράτηϲ and not just ϲωκρατέω (!)
     // let start = Instant::now();
 
@@ -737,17 +739,6 @@ fn db_sv_get_morphobjects(words: &mut Vec<&str>, lang: &str, pg: &mut postgres::
     dbmo
 }
 
-fn sv_updatesetofpossibilities(rpo: String, re: Regex) -> HashMap<String, bool> {
-    // a new collection of possibilities has arrived <p1>xxx</p1><p2>yyy</p2>...
-    // parse this string for a list of possibilities; then add its elements to the set of known possibilities
-    // return the updated set
-    let mut morph: HashMap<String, bool> = HashMap::new();
-    for f in re.find_iter(rpo.as_str()) {
-        morph.insert(String::from(f.as_str()), true);
-    }
-    morph
-}
-
 fn db_fields<'a>() ->  Vec<&'a str> {
     // used to prep the json encoding for a dbworkline
     let fld = "WkUID TbIndex Lvl5Value Lvl4Value Lvl3Value Lvl2Value Lvl1Value Lvl0Value MarkedUp Accented Stripped Hypenated Annotations";
@@ -786,6 +777,41 @@ fn db_redisfectch() -> Vec<DBLine> {
 
     let v = vec![l];
     v
+}
+
+fn db_fetchheadwordcounts(hw: Vec<String>, pg: &mut postgres::Client) -> HashMap<String, i32> {
+
+    let mut rndid = Uuid::new_v4().to_string();
+    rndid.retain(|c| c != '-');
+
+    let ttarr = format!("'{}'", hw.join("', '"));
+    let t = format!("CREATE TEMPORARY TABLE ttw_{} AS SELECT words AS w FROM unnest(ARRAY[{}]) words", &rndid, ttarr);
+    pg.execute(t.as_str(), &[]).ok().expect("db_fetchheadwordcounts() TempTable creation failed");
+
+    let q = format!("SELECT entry_name, total_count FROM dictionary_headword_wordcounts WHERE EXISTS (SELECT 1 FROM ttw_{} temptable WHERE temptable.w = dictionary_headword_wordcounts.entry_name)", rndid);
+
+    let whwvec: Vec<WeightedHeadword> = pg.query(q.as_str(), &[]).unwrap().into_iter()
+        .map(|row| WeightedHeadword {
+            wd: row.get("entry_name"),
+            ct: row.get("total_count"),
+        })
+        .collect::<Vec<WeightedHeadword>>();
+
+    let mut wtwhhm: HashMap<String, i32> = HashMap::new();
+
+    for w in whwvec {
+        wtwhhm.insert(w.wd, w.ct);
+    }
+
+    // don't kill off unfound terms
+    for k in hw {
+        if wtwhhm.contains_key(k.as_str()) {
+            continue;
+        } else {
+            wtwhhm.insert(k.clone(), 0);
+        }
+    };
+    wtwhhm
 }
 
 fn rs_del(k: &str, c: &mut redis::Connection) -> redis::RedisResult<()> {
@@ -1034,41 +1060,6 @@ fn sv_buildwinnertakesallbags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>, pg:
     bagged
 }
 
-fn db_fetchheadwordcounts(hw: Vec<String>, pg: &mut postgres::Client) -> HashMap<String, i32> {
-
-    let mut rndid = Uuid::new_v4().to_string();
-    rndid.retain(|c| c != '-');
-
-    let ttarr = format!("'{}'", hw.join("', '"));
-    let t = format!("CREATE TEMPORARY TABLE ttw_{} AS SELECT words AS w FROM unnest(ARRAY[{}]) words", &rndid, ttarr);
-    pg.execute(t.as_str(), &[]).ok().expect("db_fetchheadwordcounts() TempTable creation failed");
-
-    let q = format!("SELECT entry_name, total_count FROM dictionary_headword_wordcounts WHERE EXISTS (SELECT 1 FROM ttw_{} temptable WHERE temptable.w = dictionary_headword_wordcounts.entry_name)", rndid);
-
-    let whwvec: Vec<WeightedHeadword> = pg.query(q.as_str(), &[]).unwrap().into_iter()
-        .map(|row| WeightedHeadword {
-            wd: row.get("entry_name"),
-            ct: row.get("total_count"),
-        })
-        .collect::<Vec<WeightedHeadword>>();
-
-    let mut wtwhhm: HashMap<String, i32> = HashMap::new();
-
-    for w in whwvec {
-        wtwhhm.insert(w.wd, w.ct);
-    }
-
-    // don't kill off unfound terms
-    for k in hw {
-        if wtwhhm.contains_key(k.as_str()) {
-            continue;
-        } else {
-            wtwhhm.insert(k.clone(), 0);
-        }
-    };
-    wtwhhm
-}
-
 fn sv_findallwords(sentences: Vec<&str>) -> Vec<&str> {
     let mut allwords: HashMap<&str, bool> = HashMap::new();
     for s in sentences {
@@ -1082,6 +1073,7 @@ fn sv_findallwords(sentences: Vec<&str>) -> Vec<&str> {
 }
 
 fn sv_getrequiredmorphobjects(words: Vec<&str>, pg: &mut postgres::Client) -> HashMap<String, DbMorphology> {
+    // we need DbMorphology to build our bags; grab it
     let latintest = Regex::new("[a-z]+").unwrap();
     // let greektest = Regex::new("[α-ωϲἀἁἂἃἄἅἆἇᾀᾁᾂᾃᾄᾅᾆᾇᾲᾳᾴᾶᾷᾰᾱὰάἐἑἒἓἔἕὲέἰἱἲἳἴἵἶἷὶίῐῑῒΐῖῗὀὁὂὃὄὅόὸὐὑὒὓὔὕὖὗϋῠῡῢΰῦῧύὺᾐᾑᾒᾓᾔᾕᾖᾗῂῃῄῆῇἤἢἥἣὴήἠἡἦἧὠὡὢὣὤὥὦὧᾠᾡᾢᾣᾤᾥᾦᾧῲῳῴῶῷώὼ]+").unwrap();
     let mut latinwords: Vec<&str> = Vec::new();
@@ -1110,7 +1102,7 @@ fn sv_getrequiredmorphobjects(words: Vec<&str>, pg: &mut postgres::Client) -> Ha
 }
 
 fn sv_dropstopwords(todrop: &str, bags: Vec<String>) -> Vec<String> {
-
+    // purge stopwords from the bags
     let vv: Vec<&str> = todrop.split_whitespace().collect();
     let mut stopmap: HashMap<&str, bool> = HashMap::new();
     for v in vv { stopmap.insert(v, true); }
@@ -1132,14 +1124,15 @@ fn sv_dropstopwords(todrop: &str, bags: Vec<String>) -> Vec<String> {
 }
 
 fn sv_parallelbagloader(id: Uuid, key: String, bags: Vec<String>, c: &mut redis::Connection) {
-    println!("sv_parallelbagloader worker {} has {} bags", id.to_string(), bags.len());
+    // a worker for sv_loadthebags()
+    // println!("sv_parallelbagloader worker {} has {} bags", id.to_string(), bags.len());
     for b in bags {
-        println!("{}: {}", id.to_string(), &b);
         rs_sadd(key.as_str(), b.as_str(), c);
     }
 }
 
 fn sv_loadthebags(key: String, mut bags: Vec<String>, workers: i32, rca: &str) {
+    // load the bags of words into redis; parallelize this
     let uworkers = usize::try_from(workers).unwrap();
     let totalwork = bags.len();
     let chunksize = totalwork / uworkers;
@@ -1147,7 +1140,6 @@ fn sv_loadthebags(key: String, mut bags: Vec<String>, workers: i32, rca: &str) {
     let mut bagmap: HashMap<i32, Vec<String>> = HashMap::new();
 
     if totalwork <= uworkers {
-        println!("tinybags");
         bagmap.insert(0, bags.drain(totalwork..).collect());
     } else {
         for i in 0..workers {
@@ -1155,12 +1147,7 @@ fn sv_loadthebags(key: String, mut bags: Vec<String>, workers: i32, rca: &str) {
         }
     }
 
-    // leave no sentence behind! [note tha bags is perhaps already empty]
-    // add an extra worker with just this remainder in it
-    let mut tinybag: Vec<String> = bags.drain(bags.len()..).collect();
-    bagmap.insert(workers, tinybag);
-
-    let handles: Vec<thread::JoinHandle<_>> = (0..workers+1)
+    let handles: Vec<thread::JoinHandle<_>> = (0..workers)
         .map(|w| {
             let thisbag = &bagmap[&w].clone();
             let thisbag = thisbag.to_vec();
@@ -1175,6 +1162,18 @@ fn sv_loadthebags(key: String, mut bags: Vec<String>, workers: i32, rca: &str) {
     for thread in handles {
         thread.join().unwrap();
     }
+
+    // leave no bag behind...: bags might not be fully drained
+    // a max of workers-1 bags could still be here
+
+    let mut rc = redisconnect(rca.to_string());
+    sv_parallelbagloader(Uuid::new_v4(), key.clone(), bags, &mut rc);
+
+}
+
+fn sv_parallelmorphology() {
+    // https://stackoverflow.com/questions/57649032/returning-a-value-from-a-function-that-spawns-threads
+    // TODO...
 }
 
 fn sv_getpossiblemorph(ob: String, po: String, re: Regex) -> MorphPossibility {
@@ -1229,6 +1228,17 @@ fn sv_getpossiblemorph(ob: String, po: String, re: Regex) -> MorphPossibility {
             return mp
         }
     }
+}
+
+fn sv_updatesetofpossibilities(rpo: String, re: Regex) -> HashMap<String, bool> {
+    // a new collection of possibilities has arrived <p1>xxx</p1><p2>yyy</p2>...
+    // parse this string for a list of possibilities; then add its elements to the set of known possibilities
+    // return the updated set
+    let mut morph: HashMap<String, bool> = HashMap::new();
+    for f in re.find_iter(rpo.as_str()) {
+        morph.insert(String::from(f.as_str()), true);
+    }
+    morph
 }
 
 fn postgresconnect(j: String) -> postgres::Client {
