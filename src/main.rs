@@ -542,7 +542,6 @@ fn vector_prep(k: &str, b: &str, t: i32, db: &str, s: i32, e: i32, ll: i32, psq:
     let skipinflected = "ita a inquit ego die nunc nos quid πάντων ἤ με θεόν δεῖ for igitur ϲύν b uers p ϲου τῷ εἰϲ ergo ἐπ ὥϲτε sua me πρό sic aut nisi rem πάλιν ἡμῶν φηϲί παρά ἔϲτι αὐτῆϲ τότε eos αὐτούϲ λέγει cum τόν quidem ἐϲτιν posse αὐτόϲ post αὐτῶν libro m hanc οὐδέ fr πρῶτον μέν res ἐϲτι αὐτῷ οὐχ non ἐϲτί modo αὐτοῦ sine ad uero fuit τοῦ ἀπό ea ὅτι parte ἔχει οὔτε ὅταν αὐτήν esse sub τοῦτο i omnes break μή ἤδη ϲοι sibi at mihi τήν in de τούτου ab omnia ὃ ἦν γάρ οὐδέν quam per α autem eius item ὡϲ sint length οὗ λόγον eum ἀντί ex uel ἐπειδή re ei quo ἐξ δραχμαί αὐτό ἄρα ἔτουϲ ἀλλ οὐκ τά ὑπέρ τάϲ μάλιϲτα etiam haec nihil οὕτω siue nobis si itaque uac erat uestig εἶπεν ἔϲτιν tantum tam nec unde qua hoc quis iii ὥϲπερ semper εἶναι e ½ is quem τῆϲ ἐγώ καθ his θεοῦ tibi ubi pro ἄν πολλά τῇ πρόϲ l ἔϲται οὕτωϲ τό ἐφ ἡμῖν οἷϲ inter idem illa n se εἰ μόνον ac ἵνα ipse erit μετά μοι δι γε enim ille an sunt esset γίνεται omnibus ne ἐπί τούτοιϲ ὁμοίωϲ παρ causa neque cr ἐάν quos ταῦτα h ante ἐϲτίν ἣν αὐτόν eo ὧν ἐπεί οἷον sed ἀλλά ii ἡ t te ταῖϲ est sit cuius καί quasi ἀεί o τούτων ἐϲ quae τούϲ minus quia tamen iam d διά primum r τιϲ νῦν illud u apud c ἐκ δ quod f quoque tr τί ipsa rei hic οἱ illi et πῶϲ φηϲίν τοίνυν s magis unknown οὖν dum text μᾶλλον λόγοϲ habet τοῖϲ qui αὐτοῖϲ suo πάντα uacat τίϲ pace ἔχειν οὐ κατά contra δύο ἔτι αἱ uet οὗτοϲ deinde id ut ὑπό τι lin ἄλλων τε tu ὁ cf δή potest ἐν eam tum μου nam θεόϲ κατ ὦ cui nomine περί atque δέ quibus ἡμᾶϲ τῶν eorum";
 
     let bagged = sv_dropstopwords(skipheadwords, bagged);
-    println!("{} bags", bagged.len());
     let bagged = sv_dropstopwords(skipinflected, bagged);
 
     let duration = start.elapsed();
@@ -1109,35 +1108,28 @@ fn sv_getrequiredmorphobjects(words: Vec<&str>, pg: &mut postgres::Client) -> Ha
 fn sv_dropstopwords(todrop: &str, bags: Vec<String>) -> Vec<String> {
 
     let vv: Vec<&str> = todrop.split_whitespace().collect();
-    let mut hm: HashMap<&str, bool> = HashMap::new();
-    for v in vv { hm.insert(v, true); }
+    let mut stopmap: HashMap<&str, bool> = HashMap::new();
+    for v in vv { stopmap.insert(v, true); }
 
     let mut cleaned: Vec<String> = Vec::new();
     for b in bags {
         let ww: Vec<&str> = b.split_whitespace().collect();
         let mut ns: Vec<&str> = Vec::new();
         for w in ww {
-            if hm.contains_key(w) == false {
+            if stopmap.contains_key(w) {
+                continue;
+            } else {
                 ns.push(w);
             }
         }
         cleaned.push(ns.join(" "));
     }
-
-    let mut r: Vec<String> = Vec::new();
-    r
+    cleaned
 }
 
 fn sv_loadthebags(key: String, bags: Vec<String>, c: &mut redis::Connection) {
     for b in bags {
-        println!("{}", b);
-        // rs_sadd(key.as_str(), b.as_str(), c);
-        let _: String = redis::cmd("SADD")
-            .arg(&key)
-            .arg(b)
-            .query(c).unwrap();
-
-        // c.sadd(key.as_str(), b.as_str()).unwrap();
+        rs_sadd(key.as_str(), b.as_str(), c);
     }
 }
 
