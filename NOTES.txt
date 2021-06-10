@@ -99,7 +99,9 @@ Fri Jun  4 17:16:40 EDT 2021
   [HRH] Purged stopwords in 35208 bags [I: 31s 59ms 901us 493ns]
   [HRH] Stored 35208 bags [J: 31s 998ms 776us 682ns]
 
-the slowdown is effectively postgres: need a pooled connection
+the slowdown is effectively postgres + regex:
+    "found 54464 morphology objects" should be just a single tt + query + get/load
+    "Built morphmap" is sending regexp into a loop 54464 times....
 
 sentences broken up by things like the Q in "Eloquentia Q. Hortensi ne me in dicendo impediat, non..."
 so should implement the deabbreviator to fix that...
