@@ -11,7 +11,7 @@ than `HipparchiaGoDBHelper` unless/until you can save it from doing lots of `reg
 A refactored `HipparchiaBuilder` that pre-parses morphology possibilites spares us the trip to `regex` 
 and capture groups. This sped up both `HipparchiaGoDBHelper` and `HipparchiaRustDBHelper` as well as 
 the pure `python` version. Nevertheless, it looks like `rust` is not going to be a priority: in general this
-project requires tones of `regex`, and if `golang` is going to crush `rust`, then there is no point
+project requires tons of `regex`, and if `golang` is going to crush `rust`, then there is no point
 in suffering through all of the things one has to do to accommodate it.
 
 

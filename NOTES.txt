@@ -126,3 +126,75 @@ Hipparchia Rust Helper CLI Debugging Interface (v.0.0.6)
 [HRH] Purged stopwords in 51747 bags [I: 2s 259ms 803us 672ns]
 [HRH] Stored 51747 bags [J: 3s 581ms 419us 158ns]
 rusttest_vectorresults
+
+
+
+===
+
+the regex code that will slow you to a crawl...
+
+
+fn sv_getpossiblemorph(ob: String, po: String, re: Regex) -> MorphPossibility {
+    //     let pf = "(<possibility_([0-9]{1,2})>)(.*?)<xref_value>(.*?)</xref_value><xref_kind>(.*?)</xref_kind>(.*?)</possibility_[0-9]{1,2}>";
+    //     let re = Regex::new(pf).unwrap();
+    //
+    //     let p = "<possibility_2>bellī, bellus<xref_value>8636495</xref_value><xref_kind>9</xref_kind><transl>A. pretty; B. every thing beautiful; A. Gallant; B. good</transl><analysis>masc nom/voc pl</analysis></possibility_2>";
+    //
+    //     let c = re.captures(p).unwrap();
+    //
+    //     for i in 0..7 {
+    //         let t = c.get(i).map_or("", |m| m.as_str());
+    //         println!("{}: {}", i, t);
+    //     }
+    // 0: <possibility_2>bellī, bellus<xref_value>8636495</xref_value><xref_kind>9</xref_kind><transl>A. pretty; B. every thing beautiful; A. Gallant; B. good</transl><analysis>masc nom/voc pl</analysis></possibility_2>
+    // 1: <possibility_2>
+    // 2: 2
+    // 3: bellī, bellus
+    // 4: 8636495
+    // 5: 9
+    // 6: <transl>A. pretty; B. every thing beautiful; A. Gallant; B. good</transl><analysis>masc nom/voc pl</analysis>
+
+    let c = re.captures(po.as_str());
+    match c {
+        Some(v) => {
+            let n = v.get(2).map_or("", |m| m.as_str());
+            let e = v.get(3).map_or("", |m| m.as_str());
+            let x = v.get(4).map_or("", |m| m.as_str());
+            let a = v.get(6).map_or("", |m| m.as_str());
+
+            // note that in [3] you need to take the second half after the comma: "bellus" and not "bellī, bellus"
+            let mut ee: Vec<&str> = e.split(",").collect();
+            let e = ee.pop().unwrap_or("").trim();
+
+            let mp: MorphPossibility = MorphPossibility {
+                obs: ob,
+                num: n.to_string(),
+                ent: e.to_string(),
+                xrf: x.to_string(),
+                ana: a.to_string(),
+            };
+            return mp
+        }
+        None => {
+            let mp: MorphPossibility = MorphPossibility {
+                obs: ob,
+                num: "".to_string(),
+                ent: "".to_string(),
+                xrf: "".to_string(),
+                ana: "".to_string(),
+            };
+            return mp
+        }
+    }
+}
+
+fn sv_updatesetofpossibilities(rpo: String, re: Regex) -> HashMap<String, bool> {
+    // a new collection of possibilities has arrived <p1>xxx</p1><p2>yyy</p2>...
+    // parse this string for a list of possibilities; then add its elements to the set of known possibilities
+    // return the updated set
+    let mut morph: HashMap<String, bool> = HashMap::new();
+    for f in re.find_iter(rpo.as_str()) {
+        morph.insert(String::from(f.as_str()), true);
+    }
+    morph
+}

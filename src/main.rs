@@ -642,9 +642,6 @@ fn db_sv_get_morphobjects(words: &mut Vec<&str>, lang: &str, pg: &mut postgres::
     let mut w = words.iter().map(|w| w.to_string()).collect();
     wordswithcaps.append(&mut w);
 
-    // let tt: &str= "CREATE TEMPORARY TABLE ttw_{} AS SELECT words AS w FROM unnest(ARRAY[{}]) words";
-    // let qt: &str= "SELECT observed_form, xrefs, prefixrefs, possible_dictionary_forms FROM {}_morphology WHERE EXISTS (SELECT 1 FROM ttw_{} temptable WHERE temptable.w = {}_morphology.observed_form)";
-
     let mut rndid = Uuid::new_v4().to_string();
     rndid.retain(|c| c != '-');
 
@@ -652,11 +649,6 @@ fn db_sv_get_morphobjects(words: &mut Vec<&str>, lang: &str, pg: &mut postgres::
     let ttarr = format!("'{}'", ttarr);
     let t = format!("CREATE TEMPORARY TABLE ttw_{} AS SELECT words AS w FROM unnest(ARRAY[{}]) words", &rndid, ttarr);
 
-    // let duration = start.elapsed();
-    // let m = format!("TT [α: {}]", format_duration(duration).to_string());
-    // lfl(m, 0, 0);
-
-    // println!("{}", &t);
     pg.execute(t.as_str(), &[]).ok().expect("db_arraytogetrequiredmorphobjects() TempTable creation failed");
 
     let q = format!("SELECT observed_form, xrefs, prefixrefs, related_headwords FROM {}_morphology WHERE EXISTS (SELECT 1 FROM ttw_{} temptable WHERE temptable.w = {}_morphology.observed_form)", &lang, rndid, &lang);
@@ -668,10 +660,6 @@ fn db_sv_get_morphobjects(words: &mut Vec<&str>, lang: &str, pg: &mut postgres::
             rpo: row.get("related_headwords"),
             upo: row.get::<&str, String>("related_headwords").split_whitespace().map(|s| s.to_string()).collect(),
         }).collect::<Vec<DbMorphology>>();
-
-    // let duration = start.elapsed();
-    // let m = format!("DBMO [β: {}]", format_duration(duration).to_string());
-    // lfl(m, 0, 0);
 
     dbmo
 }
@@ -964,12 +952,6 @@ fn sv_buildwinnertakesallbags(ss: Vec<&str>, mm: HashMap<String, Vec<String>>, p
             }
     }
 
-    // let mut newparsemap: HashMap<String, Vec<&str>> = HashMap::new();
-    // for w in lchwd.keys() {
-    //     &mm[w].sort_by_key(|k| &lcscoremap[k]);
-    //     newparsemap.insert(w.clone(), mm[w].clone());
-    // }
-
     // [e] now just swap out the words: key points to right new values
 
     let re = Regex::new(" {2,}").unwrap();
@@ -1023,8 +1005,6 @@ fn sv_getrequiredmorphobjects(words: Vec<&str>, pg: &mut postgres::Client) -> Ve
             greekwords.push(w);
         }
     }
-
-    // println!("l: {}; g: {}", latinwords.len(), greekwords.len());
 
     let mut morph: Vec<DbMorphology> = db_sv_get_morphobjects(&mut latinwords, "latin", pg);
     let mut grmorph: Vec<DbMorphology> = db_sv_get_morphobjects(&mut greekwords, "greek", pg);
@@ -1107,71 +1087,6 @@ fn sv_parallelmorphology() {
     // https://stackoverflow.com/questions/57649032/returning-a-value-from-a-function-that-spawns-threads
     // TODO...
 }
-
-fn sv_getpossiblemorph(ob: String, po: String, re: Regex) -> MorphPossibility {
-    //     let pf = "(<possibility_([0-9]{1,2})>)(.*?)<xref_value>(.*?)</xref_value><xref_kind>(.*?)</xref_kind>(.*?)</possibility_[0-9]{1,2}>";
-    //     let re = Regex::new(pf).unwrap();
-    //
-    //     let p = "<possibility_2>bellī, bellus<xref_value>8636495</xref_value><xref_kind>9</xref_kind><transl>A. pretty; B. every thing beautiful; A. Gallant; B. good</transl><analysis>masc nom/voc pl</analysis></possibility_2>";
-    //
-    //     let c = re.captures(p).unwrap();
-    //
-    //     for i in 0..7 {
-    //         let t = c.get(i).map_or("", |m| m.as_str());
-    //         println!("{}: {}", i, t);
-    //     }
-    // 0: <possibility_2>bellī, bellus<xref_value>8636495</xref_value><xref_kind>9</xref_kind><transl>A. pretty; B. every thing beautiful; A. Gallant; B. good</transl><analysis>masc nom/voc pl</analysis></possibility_2>
-    // 1: <possibility_2>
-    // 2: 2
-    // 3: bellī, bellus
-    // 4: 8636495
-    // 5: 9
-    // 6: <transl>A. pretty; B. every thing beautiful; A. Gallant; B. good</transl><analysis>masc nom/voc pl</analysis>
-
-    let c = re.captures(po.as_str());
-    match c {
-        Some(v) => {
-            let n = v.get(2).map_or("", |m| m.as_str());
-            let e = v.get(3).map_or("", |m| m.as_str());
-            let x = v.get(4).map_or("", |m| m.as_str());
-            let a = v.get(6).map_or("", |m| m.as_str());
-
-            // note that in [3] you need to take the second half after the comma: "bellus" and not "bellī, bellus"
-            let mut ee: Vec<&str> = e.split(",").collect();
-            let e = ee.pop().unwrap_or("").trim();
-
-            let mp: MorphPossibility = MorphPossibility {
-                obs: ob,
-                num: n.to_string(),
-                ent: e.to_string(),
-                xrf: x.to_string(),
-                ana: a.to_string(),
-            };
-            return mp
-        }
-        None => {
-            let mp: MorphPossibility = MorphPossibility {
-                obs: ob,
-                num: "".to_string(),
-                ent: "".to_string(),
-                xrf: "".to_string(),
-                ana: "".to_string(),
-            };
-            return mp
-        }
-    }
-}
-
-// fn sv_updatesetofpossibilities(rpo: String, re: Regex) -> HashMap<String, bool> {
-//     // a new collection of possibilities has arrived <p1>xxx</p1><p2>yyy</p2>...
-//     // parse this string for a list of possibilities; then add its elements to the set of known possibilities
-//     // return the updated set
-//     let mut morph: HashMap<String, bool> = HashMap::new();
-//     for f in re.find_iter(rpo.as_str()) {
-//         morph.insert(String::from(f.as_str()), true);
-//     }
-//     morph
-// }
 
 fn postgresconnect(j: String) -> postgres::Client {
     // https://docs.rs/postgres/0.19.1/postgres/
