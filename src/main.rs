@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 static MYNAME: &str = "Hipparchia Rust Helper";
 static SHORTNAME: &str = "HRH";
-static VERSION: &str = "0.0.5";
+static VERSION: &str = "0.0.6";
 static POLLINGINTERVAL: time::Duration = time::Duration::from_millis(400);
 static TESTDB: &str = "lt0448";
 static TESTSTART: &str = "1";
@@ -56,7 +56,7 @@ struct DbMorphology {
     xrf: String,
     pxr: String,
     rpo: String,
-    upo: HashMap<String, bool>
+    upo: Vec<String>,
 }
 
 struct MorphPossibility {
@@ -66,11 +66,6 @@ struct MorphPossibility {
     xrf: String,
     ana: String,
 }
-
-// struct SentenceWithLocus {
-//     l: String,
-//     s: String,
-// }
 
 struct WeightedHeadword {
     wd: String,
@@ -442,7 +437,7 @@ fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll
 
     // [f] find all of the parsing info relative to these words
 
-    let  mo: HashMap<String, DbMorphology> = sv_getrequiredmorphobjects(allwords, &mut pg);
+    let  mo: Vec<DbMorphology> = sv_getrequiredmorphobjects(allwords, &mut pg);
 
     let duration = start.elapsed();
     let m = format!("found {} morphology objects [F: {}]", mo.len(), format_duration(duration).to_string());
@@ -455,63 +450,9 @@ fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll
     //	value = { maybeA, maybeB, maybeC}
     // {'θεῶν': {'θεόϲ', 'θέα', 'θεάω', 'θεά'}, 'πώ': {'πω'}, 'πολλά': {'πολύϲ'}, 'πατήρ': {'πατήρ'}, ... }
 
-    lazy_static! {
-        // this regex matches the python for good/ill...
-        static ref POSSPARSE: Regex = Regex::new("(<possibility_([0-9]{1,2})>)(.*?)<xref_value>(.*?)</xref_value><xref_kind>(.*?)</xref_kind>(.*?)</possibility_[0-9]{1,2}>").unwrap();
-        }
-
-    // for m in mo.keys() {
-    //     println!("{}", m);
-    // }
-
-    let mut morphmap: HashMap<String, HashMap<String, bool>> = HashMap::new();
-
-    for m in mo.keys() {
-        // unpack the unique possibilities
-        let pp: Vec<MorphPossibility> = mo[m].upo.keys().into_iter()
-            .map(|k| sv_getpossiblemorph(m.clone(), k.to_string(),POSSPARSE.clone()))
-            .collect();
-        // add them to the collection of possibilities or generate a new slot for them in the collection
-        for p in pp {
-
-            if morphmap.contains_key(&p.obs) {
-                // X is already present in 'morphdict'; need to add this headword to the set of headwords
-
-                // morphmap[&p.obs].insert(p.ent.clone(), true);
-                // above fails to build with:
-                //  ^^^^^^^^^^^^^^^^ cannot borrow as mutable
-                //  help: trait `IndexMut` is required to modify indexed content, but it is not implemented for `HashMap<std::string::String, HashMap<std::string::String, bool>>`
-
-                // https://stackoverflow.com/questions/30414424/how-can-i-update-a-value-in-a-mutable-hashmap
-                // https://doc.rust-lang.org/std/collections/struct.HashMap.html#method.get_mut
-                // let mut map = HashMap::new();
-                // map.insert(1, "a");
-                // if let Some(x) = map.get_mut(&1) {
-                //     *x = "b";
-                // }
-                // assert_eq!(map[&1], "b");
-
-                if let Some(x) = morphmap.get_mut(&p.obs) {
-                    x.insert(p.ent.clone(), true);
-                }
-            } else {
-                // initialize and insert...
-                let mut y: HashMap<String, bool> = HashMap::new();
-                y.insert(p.ent.clone(), true);
-                morphmap.insert(p.obs.clone(), y);
-            }
-        }
-    }
-
-    // for m in morphmap.keys() {
-    //     println!("{}", m);
-    // }
-
-    // no need for the "bool" any longer; demap things
-
-    let mut mm: HashMap<String, Vec<&str>> = HashMap::new();
-    for m in morphmap.keys() {
-        mm.insert(m.to_string(), morphmap[m].keys().map(|k| k.as_str()).collect());
+    let mut morphmap: HashMap<String, Vec<String>> = HashMap::new();
+    for m in mo {
+        morphmap.insert(m.obs, m.upo);
     }
 
     let duration = start.elapsed();
@@ -523,11 +464,11 @@ fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll
     let mut bagged: Vec<String> = Vec::new();
 
     if b == "flat" {
-        bagged = sv_buildflatbags(sentences.to_owned(), mm);
+        bagged = sv_buildflatbags(sentences.to_owned(), morphmap);
     } else if b == "alternates" {
-        bagged =  sv_buildcompositebags(sentences.to_owned(), mm);
+        bagged =  sv_buildcompositebags(sentences.to_owned(), morphmap);
     } else if b == "winnertakesall" {
-        bagged =  sv_buildwinnertakesallbags(sentences.to_owned(), mm, &mut pg);
+        bagged =  sv_buildwinnertakesallbags(sentences.to_owned(), morphmap, &mut pg);
     } else {
         // should never hit this but...
         println!("UNKNOWN BAGGING METHOD ['{}']; you will get 'unlemmatized' bags instead", b);
@@ -718,18 +659,14 @@ fn db_sv_get_morphobjects(words: &mut Vec<&str>, lang: &str, pg: &mut postgres::
     // println!("{}", &t);
     pg.execute(t.as_str(), &[]).ok().expect("db_arraytogetrequiredmorphobjects() TempTable creation failed");
 
-    lazy_static! {
-        static ref POSS : Regex = Regex::new("<possibility_[0-9]{1,2}>.*?</possibility_[0-9]{1,2}>").unwrap();
-    }
-
-    let q = format!("SELECT observed_form, xrefs, prefixrefs, possible_dictionary_forms FROM {}_morphology WHERE EXISTS (SELECT 1 FROM ttw_{} temptable WHERE temptable.w = {}_morphology.observed_form)", &lang, rndid, &lang);
+    let q = format!("SELECT observed_form, xrefs, prefixrefs, related_headwords FROM {}_morphology WHERE EXISTS (SELECT 1 FROM ttw_{} temptable WHERE temptable.w = {}_morphology.observed_form)", &lang, rndid, &lang);
     let dbmo = pg.query(q.as_str(), &[]).unwrap().into_iter()
         .map(|row| DbMorphology {
             obs: row.get("observed_form"),
             xrf: row.get("xrefs"),
             pxr: row.get("prefixrefs"),
-            rpo: row.get("possible_dictionary_forms"),
-            upo: sv_updatesetofpossibilities(row.get("possible_dictionary_forms"), POSS.clone()),
+            rpo: row.get("related_headwords"),
+            upo: row.get::<&str, String>("related_headwords").split_whitespace().map(|s| s.to_string()).collect(),
         }).collect::<Vec<DbMorphology>>();
 
     // let duration = start.elapsed();
@@ -910,7 +847,7 @@ fn sv_buildsentences(splittext: Vec<&str>) -> HashMap<String, String> {
     sentenceswithlocus
 }
 
-fn sv_buildflatbags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String> {
+fn sv_buildflatbags(ss: Vec<&str>, mm: HashMap<String, Vec<String>>) -> Vec<String> {
     // turn a list of sentences into a list of list of headwords; here we put alternate possibilities next to one another:
     // flatbags: ϲυγγενεύϲ ϲυγγενήϲ
     // composite: ϲυγγενεύϲ·ϲυγγενήϲ
@@ -918,10 +855,10 @@ fn sv_buildflatbags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String
 
     let swapper = |sent: &str| {
         let words: Vec<&str> = sent.split_whitespace().collect();
-        let mut newwords: Vec<&str> = Vec::new();
+        let mut newwords: Vec<String> = Vec::new();
         for w in words {
             if mm.contains_key(w) {
-                let mut unpacked: Vec<&str> = mm[w].clone();
+                let mut unpacked: Vec<String> = mm[w].clone();
                 // println!("{}: {:?}", w, unpacked);
                 newwords.append(&mut unpacked);
             }
@@ -943,7 +880,7 @@ fn sv_buildflatbags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String
     bagged
 }
 
-fn sv_buildcompositebags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<String> {
+fn sv_buildcompositebags(ss: Vec<&str>, mm: HashMap<String, Vec<String>>) -> Vec<String> {
     // turn a list of sentences into a list of list of headwords; here we put yoked alternate possibilities next to one another:
     // flatbags: ϲυγγενεύϲ ϲυγγενήϲ
     // composite: ϲυγγενεύϲ·ϲυγγενήϲ
@@ -976,7 +913,7 @@ fn sv_buildcompositebags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>) -> Vec<S
     bagged
 }
 
-fn sv_buildwinnertakesallbags(ss: Vec<&str>, mm: HashMap<String, Vec<&str>>, pg: &mut postgres::Client) -> Vec<String> {
+fn sv_buildwinnertakesallbags(ss: Vec<&str>, mm: HashMap<String, Vec<String>>, pg: &mut postgres::Client) -> Vec<String> {
     // turn a list of sentences into a list of list of headwords; here we figure out which headword is the dominant homonym
     // then we just use that term; "esse" always comes from "sum" and never "edo", etc.
 
@@ -1072,7 +1009,7 @@ fn sv_findallwords(sentences: Vec<&str>) -> Vec<&str> {
     thewords
 }
 
-fn sv_getrequiredmorphobjects(words: Vec<&str>, pg: &mut postgres::Client) -> HashMap<String, DbMorphology> {
+fn sv_getrequiredmorphobjects(words: Vec<&str>, pg: &mut postgres::Client) -> Vec<DbMorphology> {
     // we need DbMorphology to build our bags; grab it
     let latintest = Regex::new("[a-z]+").unwrap();
     // let greektest = Regex::new("[α-ωϲἀἁἂἃἄἅἆἇᾀᾁᾂᾃᾄᾅᾆᾇᾲᾳᾴᾶᾷᾰᾱὰάἐἑἒἓἔἕὲέἰἱἲἳἴἵἶἷὶίῐῑῒΐῖῗὀὁὂὃὄὅόὸὐὑὒὓὔὕὖὗϋῠῡῢΰῦῧύὺᾐᾑᾒᾓᾔᾕᾖᾗῂῃῄῆῇἤἢἥἣὴήἠἡἦἧὠὡὢὣὤὥὦὧᾠᾡᾢᾣᾤᾥᾦᾧῲῳῴῶῷώὼ]+").unwrap();
@@ -1093,12 +1030,7 @@ fn sv_getrequiredmorphobjects(words: Vec<&str>, pg: &mut postgres::Client) -> Ha
     let mut grmorph: Vec<DbMorphology> = db_sv_get_morphobjects(&mut greekwords, "greek", pg);
 
     morph.append(&mut grmorph);
-
-    let mut mo: HashMap<String, DbMorphology> = HashMap::new();
-    for m in morph {
-        mo.insert(m.obs.clone(), m.clone());
-    }
-    mo
+    morph
 }
 
 fn sv_dropstopwords(todrop: &str, bags: Vec<String>) -> Vec<String> {
@@ -1230,16 +1162,16 @@ fn sv_getpossiblemorph(ob: String, po: String, re: Regex) -> MorphPossibility {
     }
 }
 
-fn sv_updatesetofpossibilities(rpo: String, re: Regex) -> HashMap<String, bool> {
-    // a new collection of possibilities has arrived <p1>xxx</p1><p2>yyy</p2>...
-    // parse this string for a list of possibilities; then add its elements to the set of known possibilities
-    // return the updated set
-    let mut morph: HashMap<String, bool> = HashMap::new();
-    for f in re.find_iter(rpo.as_str()) {
-        morph.insert(String::from(f.as_str()), true);
-    }
-    morph
-}
+// fn sv_updatesetofpossibilities(rpo: String, re: Regex) -> HashMap<String, bool> {
+//     // a new collection of possibilities has arrived <p1>xxx</p1><p2>yyy</p2>...
+//     // parse this string for a list of possibilities; then add its elements to the set of known possibilities
+//     // return the updated set
+//     let mut morph: HashMap<String, bool> = HashMap::new();
+//     for f in re.find_iter(rpo.as_str()) {
+//         morph.insert(String::from(f.as_str()), true);
+//     }
+//     morph
+// }
 
 fn postgresconnect(j: String) -> postgres::Client {
     // https://docs.rs/postgres/0.19.1/postgres/
