@@ -392,6 +392,13 @@ fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll
     let fulltext = sv_stripper(fulltext.as_str(), re_array);
     // println!("stripped\n{}", fulltext);
 
+    let re = Regex::new("v").unwrap();
+    let fulltext = re.replace_all(&*fulltext, "u");
+    let re = Regex::new("j").unwrap();
+    let fulltext = re.replace_all(&*fulltext, "i");
+    let re = Regex::new("[σς]]").unwrap();
+    let fulltext = re.replace_all(&*fulltext, "ϲ");
+
     let duration = start.elapsed();
     let m = format!("preliminary cleanups complete [C: {}]", format_duration(duration).to_string());
     lfl(m, ll, 2);
@@ -806,6 +813,54 @@ fn sv_stripper(text: &str, topurge: Vec<Regex>) -> String {
     for r in topurge {
         newtext = r.replace_all(&newtext, "").into_owned();
     }
+    newtext
+}
+
+fn sv_swapper(text: &str) -> String {
+    let mut swapper: HashMap<&str, &str> = HashMap::new();
+    swapper.insert("A.", "Aulus");
+    swapper.insert("App.", "Appius");
+    swapper.insert("C.", "Caius");
+    swapper.insert("G.", "Gaius");
+    swapper.insert("Cn.", "Cnaius");
+    swapper.insert("D.", "Decimus");
+    swapper.insert("L.", "Lucius");
+    swapper.insert("M.", "Marcus");
+    swapper.insert("M.’", "Manius");
+    swapper.insert("N.", "Numerius");
+    swapper.insert("P.", "Publius");
+    swapper.insert("Q.", "Quintus");
+    swapper.insert("S.", "Spurius");
+    swapper.insert("Sp.", "Spurius",);
+    swapper.insert("Ser.", "Servius");
+    swapper.insert("Sex.", "Sextus");
+    swapper.insert("T.", "Titus");
+    swapper.insert("Ti", "Tiberius");
+    swapper.insert("V.", "Vibius");
+    swapper.insert("a.", "ante");
+    swapper.insert("d.", "dies");
+    swapper.insert("Id.", "Idibus");
+    swapper.insert("Kal.", "Kalendas");
+    swapper.insert("Non.", "Nonas");
+    swapper.insert("prid.", "pridie");
+    swapper.insert("Ian.", "Ianuarias");
+    swapper.insert("Feb.", "Februarias");
+    swapper.insert("Mart.", "Martias");
+    swapper.insert("Apr.", "Aprilis");
+    swapper.insert("Mai.", "Maias");
+    swapper.insert("Iun.", "Iunias");
+    swapper.insert("Quint.", "Quintilis");
+    swapper.insert("Sext.", "Sextilis");
+    swapper.insert("Sept.", "Septembris");
+    swapper.insert("Oct.", "Octobris");
+    swapper.insert("Nov.", "Novembris");
+    swapper.insert("Dec.", "Decembris");
+
+    let mut words: Vec<&str> = text.split_ascii_whitespace().collect();
+    let newwords: Vec<&str> = words.iter()
+        .map(|w| if swapper.contains_key(w) { swapper[w]} else { w })
+        .collect();
+    let newtext = newwords.join(" ");
     newtext
 }
 

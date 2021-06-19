@@ -14,6 +14,14 @@ the pure `python` version. Nevertheless, it looks like `rust` is not going to be
 project requires tons of `regex`, and if `golang` is going to crush `rust`, then there is no point
 in suffering through all of the things one has to do to accommodate it.
 
+### warning
+
+if you do not use `HipparchiaBuilder 1.5.0b+` you will see the following panic because your DB columns are wrong...
+
+```thread 'main' panicked at 'called `Result::unwrap()` on an `Err` value: Error { kind: Db, cause: Some(DbError { severity: "ERROR", parsed_severity: Some(Error), code: SqlState(E42703), message: "column \"related_headwords\" does not exist", detail: None, hint: None, position: Some(Original(42)), where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("parse_relation.c"), line: Some(3504), routine: Some("errorMissingColumn") }) }', src/main.rs:655:42```
+
+
+### speed notes
 
 ```
 RUST vs GO: Golang slaughters on this one... [pre-Builder 1.5.0b]
