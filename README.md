@@ -2,14 +2,21 @@
 
 mostly a way to learn more about rust, I suppose.
 
-this helper is not going to be finished?
+this helper is not going to be polished up and/or a high priority
 
-`HipparchiaRustDBHelper` can do `websockets` and `grabbing`, but work on the `vectors` called a halt to the procedings: this is **significantly** slower than `HipparchiaGoDBHelper`.
+`HipparchiaRustDBHelper` can do `websockets` and `grabbing`, but work on the `vectors` 
+exposed some serious issues with using `rust` + `regex`: this is **significantly** slower 
+than `HipparchiaGoDBHelper` unless/until you can save it from doing lots of `regex`.
 
-It is not at all clear that craftier algorithms are going to make up the difference here. Go is just plain better if you are dealing with lots of strings?
+A refactored `HipparchiaBuilder` that pre-parses morphology possibilites spares us the trip to `regex` 
+and capture groups. This sped up both `HipparchiaGoDBHelper` and `HipparchiaRustDBHelper` as well as 
+the pure `python` version. Nevertheless, it looks like `rust` is not going to be a priority: in general this
+project requires tones of `regex`, and if `golang` is going to crush `rust`, then there is no point
+in suffering through all of the things one has to do to accommodate it.
+
 
 ```
-RUST vs GO: Golang slaughters on this one...
+RUST vs GO: Golang slaughters on this one... [pre-Builder 1.5.0b]
 
 1452 •erik@big-sur-box• rust/HipparchiaRustDBHelper/ % ./target/release/hipparchia_rust_dbhelper  --sv --l 3 --p ${L} --svdb lt0474 --svs 4 --sve 100000
   Hipparchia Rust Helper CLI Debugging Interface (v.0.0.4)
@@ -28,10 +35,7 @@ RUST vs GO: Golang slaughters on this one...
   [HRH] Stored 35208 bags [J: 31s 998ms 776us 682ns]
 
 
-the slowdown is effectively postgres + regex:
-    "found 54464 morphology objects" should be just a single tt + query + get/load
-    "Built morphmap" is sending regexp into a loop 54464 times....
-    
+the slowdown is regex in both cases where the gaps are obvious
     
 date && ./HipparchiaGoDBHelper -sv -l 5 -svdb lt0474 -svs 4 -sve 100000 -k "" -p ${L} && date
 Thu Jun 10 17:28:26 EDT 2021
@@ -53,5 +57,48 @@ Thu Jun 10 17:28:26 EDT 2021
 [HGH] Finished loading [J: 4.034843s]
 bags have been stored at _vectorresults
 Thu Jun 10 17:28:30 EDT 2021
+
+```
+
+```
+RUST vs GO: parity... [post-Builder 1.5.0b]
+
+
+% ./target/release/hipparchia_rust_dbhelper  --sv --l 3 --p ${L} --svdb lt0474 --svs 4 --sve 140000
+Hipparchia Rust Helper CLI Debugging Interface (v.0.0.6)
+[HRH] requested the vector_prep() branch of the code
+[HRH] Seeking to build winnertakesall bags of words
+[HRH] No redis key; gathering lines with a direct CLI PostgreSQL query)
+[HRH] dblines fetched [A: 398ms 452us 178ns]
+[HRH] unified text block built [B: 455ms 518us 146ns]
+[HRH] preliminary cleanups complete [C: 491ms 184us 155ns]
+[HRH] found 66511 sentences [D: 723ms 177us 397ns]
+[HRH] found 78817 words [E: 837ms 2us 591ns]
+[HRH] found 67835 morphology objects [F: 1s 656ms 442us 806ns]
+[HRH] Built morphmap [G: 1s 685ms 663us 782ns]
+[HRH] Built 66511 bags [H: 2s 175ms 255us 17ns]
+[HRH] Purged stopwords in 51747 bags [I: 2s 259ms 803us 672ns]
+[HRH] Stored 51747 bags [J: 3s 581ms 419us 158ns]
+rusttest_vectorresults
+
+
+% ./HipparchiaGoDBHelper -sv -l 3 -svdb lt0474 -svs 4 -sve 140000
+[HGH] Hipparchia Golang Helper CLI Debugging Interface (v.1.2.0) [loglevel=3]
+[HGH] Bagger Module Launched
+[HGH] Seeking to build *winnertakesall* bags of words
+[HGH] Connected to redis
+[HGH] Connected to hipparchiaDB on PostgreSQL
+[HGH] No redis key; gathering lines with a direct CLI PostgreSQL query
+[HGH] [A: 0.194s][Δ: 0.194s] 139997 lines acquired
+[HGH] [B: 0.288s][Δ: 0.094s] Unified text block built
+[HGH] [C: 0.441s][Δ: 0.153s] Preliminary cleanups complete
+[HGH] [D: 1.397s][Δ: 0.956s] Found 68790 sentences
+[HGH] [E: 1.455s][Δ: 0.058s] Found 80125 distinct words
+[HGH] [F: 1.822s][Δ: 0.367s] Got morphology for 73819 terms
+[HGH] [G: 1.837s][Δ: 0.014s] Built morphmap for 73819 terms
+[HGH] [H: 2.153s][Δ: 0.316s] Finished bagging 68790 bags
+[HGH] [I: 2.290s][Δ: 0.138s] Cleared stopwords: 66661 bags remain
+[HGH] [J: 3.696s][Δ: 1.406s] Finished loading
+bags have been stored at _vectorresults%
 
 ```
