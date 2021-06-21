@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 static MYNAME: &str = "Hipparchia Rust Helper";
 static SHORTNAME: &str = "HRH";
-static VERSION: &str = "0.0.8";
+static VERSION: &str = "0.1.0";
 static POLLINGINTERVAL: time::Duration = time::Duration::from_millis(400);
 static TESTDB: &str = "lt0448";
 static TESTSTART: &str = "1";
