@@ -1,7 +1,7 @@
 #!/bin/sh
 
-cargo build
-D="target/debug/"
+cargo build --release
+D="target/release/"
 O="hipparchia_rust_dbhelper"
 P="HipparchiaRustDBHelper"
 T="../HipparchiaRustBinaries/cli_prebuilt_binaries"

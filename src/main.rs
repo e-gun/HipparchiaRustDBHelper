@@ -15,7 +15,7 @@ use humantime::format_duration;
 use json::JsonValue;
 use lazy_static::lazy_static;
 use postgres::{Client, Error, NoTls};
-use redis::Commands;
+use redis::{Commands, Connection};
 use regex::Regex;
 use tungstenite::{accept_hdr, handshake::server::{Request, Response}, Message, WebSocket};
 use uuid::Uuid;
@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 static MYNAME: &str = "Hipparchia Rust Helper";
 static SHORTNAME: &str = "HRH";
-static VERSION: &str = "0.0.7";
+static VERSION: &str = "0.0.8";
 static POLLINGINTERVAL: time::Duration = time::Duration::from_millis(400);
 static TESTDB: &str = "lt0448";
 static TESTSTART: &str = "1";
@@ -188,7 +188,8 @@ fn main() {
         let sta = cli.value_of("svs").unwrap().parse().unwrap();
         let end = cli.value_of("sve").unwrap().parse().unwrap();
         // build more of the cli interface to get rid of TEST... items
-        vector_prep(&thekey, &b, workers, db, sta, end, ll, &pg, &rc);
+        let resultkey: String = vector_prep(&thekey, &b, workers, db, sta, end, ll, &pg, &rc);
+        println!("{}", resultkey);
     } else {
         // if neither "ws" or "vs", then you are a "grabber"
         // note that a fn grabber() gets into a lifetime problem w/ thread::spawn()
@@ -316,7 +317,7 @@ fn grabworker(id: Uuid, cap: &i32, thekey: &str, pg: &str, rc: &str) -> Result<(
     Ok(())
 }
 
-fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll: i32, psq: &str, rca: &str) {
+fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll: i32, psq: &str, rca: &str) -> String {
     // VECTOR PREP builds bags for modeling; to do this you need to...
     //
     // [a] grab db lines that are relevant to the search
@@ -358,7 +359,7 @@ fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll
         // either db_directfetch()
         // otherwise we will mimic grabworker() pattern to aggregate the lines
         &"rusttest" => db_directfetch(db, s, e, &mut pg),
-        _ => db_redisfectch(),
+        _ => db_redisfectch(&thekey, psq, rca, ),
     };
 
     let duration = start.elapsed();
@@ -546,8 +547,7 @@ fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll
     let m = format!("Stored {} bags [J: {}]", bl, format_duration(duration).to_string());
     lfl(m, ll, 2);
 
-    println!("{}", resultkey);
-    std::process::exit(1);
+    resultkey
 }
 
 fn websocket(ft: &str, ll: i32, ip: &str, port: &str, rc: String) {
@@ -730,15 +730,55 @@ fn db_directfetch(t: &str, s: i32, e: i32, pg: &mut postgres::Client) -> Vec<DBL
     lines
 }
 
-fn db_redisfectch() -> Vec<DBLine> {
-    // hollow placeholder for now
-    let l = DBLine { idx: 1, uid: "".to_string(), l5: "".to_string(), l4: "".to_string(),
-        l3: "".to_string(), l2: "".to_string(), l1: "".to_string(), l0: "".to_string(),
-        mu: "(this is a hollow placeholder)".to_string(), ac: "".to_string(), st: "".to_string(), hy: "".to_string(),
-        an: "".to_string() };
+fn db_redisfectch(thekey: &str, pg: &str, rc: &str) -> Vec<DBLine> {
+    let mut redisconn = redisconnect(rc.to_string());
+    let mut psqlclient = postgresconnect(pg.to_string());
 
-    let v = vec![l];
-    v
+    let mut foundlines: Vec<DBLine> = Vec::new();
+    loop {
+        // [a] pop a query stored as json in redis
+        let j = rs_spop(&thekey, &mut redisconn);
+        if &j == &"" { break }
+        // [b] update the polling data
+        let workpile = rs_scard(&thekey, &mut redisconn);
+        let w = workpile.to_string();
+        let thiskey = format!("{}_remaining", &thekey);
+        rs_set_str(&thiskey, w.as_str(), &mut redisconn).unwrap();
+
+        // [c] decode the query
+        let parsed = json::parse(j.as_str()).unwrap();
+        let t = parsed["TempTable"].as_str().unwrap();
+        let q = parsed["PsqlQuery"].as_str().unwrap();
+        let d = parsed["PsqlData"].as_str().unwrap();  // never any data, right...?
+
+        // [d] build a temp table if needed
+        if &t != &"" {
+            psqlclient.execute(t, &[]).ok().expect("TempTable creation failed");
+        }
+
+        // [e] execute the main query && aggregate the finds
+        // https://siciarz.net/24-days-of-rust-postgres/
+        // https://docs.rs/postgres/0.19.1/postgres/index.html
+        let thelines: Vec<DBLine> = psqlclient.query(q, &[]).unwrap().into_iter()
+            .map(|row| DBLine {
+                idx: row.get("index"),
+                uid: row.get("wkuniversalid"),
+                l5: row.get("level_05_value"),
+                l4: row.get("level_04_value"),
+                l3: row.get("level_03_value"),
+                l2: row.get("level_02_value"),
+                l1: row.get("level_01_value"),
+                l0: row.get("level_00_value"),
+                mu: row.get("marked_up_line"),
+                ac: row.get("accented_line"),
+                st: row.get("stripped_line"),
+                hy: row.get("hyphenated_words"),
+                an: row.get("annotations"),
+            }).collect::<Vec<DBLine>>();
+        foundlines.extend(thelines);
+    }
+    println!("db_redisfectch found {} lines", &foundlines.len());
+    foundlines
 }
 
 fn db_fetchheadwordcounts(hw: Vec<String>, pg: &mut postgres::Client) -> HashMap<String, i32> {

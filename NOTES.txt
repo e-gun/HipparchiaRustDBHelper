@@ -110,21 +110,21 @@ so should implement the deabbreviator to fix that...
 
 builder 1.5.0b lets you skip the regex and look what happens: 10x faster
 
-1070 •erik@big-sur-box• rust/HipparchiaRustDBHelper/ % ./target/release/hipparchia_rust_dbhelper  --sv --l 3 --p ${L} --svdb lt0474 --svs 4 --sve 140000
-Hipparchia Rust Helper CLI Debugging Interface (v.0.0.6)
+1219 •erik@big-sur-box• rust/HipparchiaRustDBHelper/ % ./target/release/hipparchia_rust_dbhelper  --sv --l 3 --p ${L} --svdb lt0474 --svs 1 --sve 149570
+Hipparchia Rust Helper CLI Debugging Interface (v.0.0.7)
 [HRH] requested the vector_prep() branch of the code
 [HRH] Seeking to build winnertakesall bags of words
 [HRH] No redis key; gathering lines with a direct CLI PostgreSQL query)
-[HRH] dblines fetched [A: 398ms 452us 178ns]
-[HRH] unified text block built [B: 455ms 518us 146ns]
-[HRH] preliminary cleanups complete [C: 491ms 184us 155ns]
-[HRH] found 66511 sentences [D: 723ms 177us 397ns]
-[HRH] found 78817 words [E: 837ms 2us 591ns]
-[HRH] found 67835 morphology objects [F: 1s 656ms 442us 806ns]
-[HRH] Built morphmap [G: 1s 685ms 663us 782ns]
-[HRH] Built 66511 bags [H: 2s 175ms 255us 17ns]
-[HRH] Purged stopwords in 51747 bags [I: 2s 259ms 803us 672ns]
-[HRH] Stored 51747 bags [J: 3s 581ms 419us 158ns]
+[HRH] 149570 dblines fetched [A: 354ms 611us 633ns]
+[HRH] unified text block built [B: 414ms 414us 366ns]
+[HRH] preliminary cleanups complete [C: 543ms 104us 416ns]
+[HRH] found 67980 sentences [D: 788ms 188us 134ns]
+[HRH] found 81507 words [E: 917ms 181us 728ns]
+[HRH] found 83320 morphology objects [F: 1s 763ms 563us 976ns]
+[HRH] Built morphmap for 81663 items [G: 1s 817ms 811us 83ns]
+[HRH] Built 67980 bags [H: 2s 514ms 489us 986ns]
+[HRH] Purged stopwords in 67388 bags [I: 2s 731ms 155us 379ns]
+[HRH] Stored 67388 bags [J: 4s 582ms 941us 903ns]
 rusttest_vectorresults
 
 ===
