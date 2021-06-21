@@ -454,6 +454,10 @@ fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll
 
     let  mo: Vec<DbMorphology> = sv_getrequiredmorphobjects(allwords.clone(), &mut pg);
 
+    // note that you will have more in [f] than in [g]; but the golang version is a map and
+    // so there len(f) = len(g); nevertheless len(e) is supposed to match len(g) in both cases
+    // since we refuse to drop any words
+
     let duration = start.elapsed();
     let m = format!("found {} morphology objects [F: {}]", mo.len(), format_duration(duration).to_string());
     lfl(m, ll, 2);
@@ -500,6 +504,12 @@ fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll
         println!("UNKNOWN BAGGING METHOD ['{}']; you will get 'unlemmatized' bags instead", b);
         bagged =  sentences.iter().map(|s| s.to_string()).collect();
     }
+
+    // for b in &bagged {
+    //     if b.len() > 0 {
+    //         println!("[bag] {}", &b);
+    //     }
+    // }
 
     let duration = start.elapsed();
     let m = format!("Built {} bags [H: {}]", bagged.len(), format_duration(duration).to_string());
@@ -976,56 +986,76 @@ fn sv_buildcompositebags(ss: Vec<&str>, mm: HashMap<String, Vec<String>>) -> Vec
     bagged
 }
 
-fn sv_buildwinnertakesallbags(ss: Vec<&str>, mm: HashMap<String, Vec<String>>, pg: &mut postgres::Client) -> Vec<String> {
+fn sv_buildwinnertakesallbags(ss: Vec<&str>, parsemap: HashMap<String, Vec<String>>, pg: &mut postgres::Client) -> Vec<String> {
     // turn a list of sentences into a list of list of headwords; here we figure out which headword is the dominant homonym
     // then we just use that term; "esse" always comes from "sum" and never "edo", etc.
 
     // [a] figure out all headwords in use
 
-    let mut hwd: HashMap<String, bool> = HashMap::new();
-    for m in mm.keys() {
-        for p in &mm[m] {
-            hwd.insert(p.to_string(), true);
+    let mut allheadwords: HashMap<String, bool> = HashMap::new();
+    for m in parsemap.keys() {
+        for p in &parsemap[m] {
+            allheadwords.insert(p.to_string(), true);
         }
     }
 
-    // [b] assign scores to each of them
-    let wds: Vec<String> = mm.keys().map(|k| k.clone()).collect();
+    // [b] generate scoremap and assign scores to each of the headwords
+    let wds: Vec<String> = allheadwords.keys().map(|k| k.clone()).collect();
     let scoremap: HashMap<String, i32> = db_fetchheadwordcounts(wds, pg);
 
-    // [c] note that there are capital words in here that need lowering
-    // [c1] lower the internal values first
+    // for s in scoremap.keys() {
+    //     println!("{} {}", &s, &scoremap[s]);
+    // }
 
-    let mut lchwd: HashMap<String, bool> = HashMap::new();
-    for k in hwd.keys() {
-        lchwd.insert(str_lcs(k), true);
+    // in 183796
+    // reor 17869
+    // pertimesco 137
+    // ambo 833
+    // eloquentia 839
+    // ...
+
+    // [c] note that there are capital words in the parsemap that need lowering
+    // lower the keys and the values at the same time
+
+    let mut lcparsemap: HashMap<String, Vec<String>> = HashMap::new();
+    for (key, value) in &parsemap {
+        lcparsemap.insert(str_lcs(key), value.clone().iter().map(|v| str_lcs(v)).collect());
     }
-
-    // [c2] lower the scoremap keys; how worried should we be about the collisions...
 
     let mut lcscoremap: HashMap<String, i32> = HashMap::new();
-    for k in hwd.keys() {
-        if scoremap.contains_key(k) {
-            lcscoremap.insert(str_lcs(k), scoremap[k]);
-        }
-        // lcscoremap.insert(format!("{}{}", k.chars().next().unwrap().to_lowercase(), k.chars().skip(1).collect::<String>()).as_str().clone().unwrap(), scoremap[k]);
+    for (key, value) in &scoremap {
+        lcscoremap.insert(str_lcs(key), *value);
     }
+
+    // reset our names
+    let parsemap = lcparsemap;
+    let scoremap = lcscoremap;
 
     // [d] run through the parser map and kill off the losers
 
+    // this part is broken: the newparsemap contains only headword:headword pairs;
+    //  dissero² dissero²
+    //  gratiosus gratiosus
+
     let mut newparsemap: HashMap<String, String> = HashMap::new();
-    for w in lchwd.keys() {
-            if mm.contains_key(w) {
-                let mut poss: Vec<String> = mm[w].iter()
-                    .map(|k| k.to_string())
-                    .collect();
-                poss.sort_by_key(|k| if lcscoremap.contains_key(k) { lcscoremap[k] } else { 0 });
-                // poss.resize(1, "".to_string());
-                newparsemap.insert(w.clone(), poss.pop().unwrap());
+    for (headword, possibilities) in &parsemap {
+        // let mut poss: HashMap<i32, String> = HashMap::new();
+        let highscore = 0;
+        for p in possibilities {
+            if scoremap.contains_key(&*headword.clone()) {
+                let thisscore: i32 = scoremap[&*headword.clone()];
+                if thisscore >= highscore {
+                    newparsemap.insert(headword.clone(), p.to_string());
+                }
             } else {
-                newparsemap.insert(w.clone(), w.clone());
+                newparsemap.insert(headword.clone(), p.to_string());
             }
+        }
     }
+
+    // for s in newparsemap.keys() {
+    //     println!("{} {}", &s, &newparsemap[s]);
+    // }
 
     // [e] now just swap out the words: key points to right new values
 
