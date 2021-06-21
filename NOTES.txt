@@ -127,29 +127,27 @@ Hipparchia Rust Helper CLI Debugging Interface (v.0.0.6)
 [HRH] Stored 51747 bags [J: 3s 581ms 419us 158ns]
 rusttest_vectorresults
 
-
 ===
 
-panics on greek
 
-1145 •erik@big-sur-box• rust/HipparchiaRustDBHelper/ % ./target/debug/hipparchia_rust_dbhelper  --sv --l 3 --p ${L} --svdb gr0007 --svs 4 --sve 40000
-Hipparchia Rust Helper CLI Debugging Interface (v.0.0.6)
-[HRH] requested the vector_prep() branch of the code
-[HRH] Seeking to build winnertakesall bags of words
-[HRH] No redis key; gathering lines with a direct CLI PostgreSQL query)
-[HRH] 39997 dblines fetched [A: 921ms 969us 254ns]
-[HRH] unified text block built [B: 954ms 354us 453ns]
-[HRH] preliminary cleanups complete [C: 1s 583ms 131us 417ns]
-[HRH] found 11788 sentences [D: 3s 693ms 839us 660ns]
-[HRH] found 47013 words [E: 4s 186ms 220us 680ns]
-[HRH] found 43049 morphology objects [F: 5s 389ms 540us 46ns]
-[HRH] Built morphmap for 43043 items [G: 5s 469ms 954us 401ns]
-thread 'main' panicked at 'no entry found for key', src/main.rs:1002:68
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+the great sentences mystery
+
+python's cicero:
+
+!!! acquireandbagthewords(): 75129 sentences found !!!
 
 
+golang's cicero:
 
-===
+[HGH] [D: 1.494s][Δ: 1.019s] Found 73023 sentences
+
+
+rust's cicero:
+
+[HRH] found 77399 sentences [D: 799ms 38us 103ns]
+
+
+====
 
 the regex code that will slow you to a crawl...
 

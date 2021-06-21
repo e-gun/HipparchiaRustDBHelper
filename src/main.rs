@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 static MYNAME: &str = "Hipparchia Rust Helper";
 static SHORTNAME: &str = "HRH";
-static VERSION: &str = "0.0.6";
+static VERSION: &str = "0.0.7";
 static POLLINGINTERVAL: time::Duration = time::Duration::from_millis(400);
 static TESTDB: &str = "lt0448";
 static TESTSTART: &str = "1";
@@ -374,7 +374,7 @@ fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll
     // but is it really possible to generate an array? "arrays cannot have values added or removed at runtime"
 
     let txtlines: Vec<String> = dblines.iter()
-        .map(|x| format!{"⊏line/{}/{}⊐{} ", x.uid, x.idx, x.mu})
+        .map(|x| format!{"⊏line/{}/{}⊐{}", x.uid, x.idx, x.mu})
         .collect();
 
     let fulltext: String = txtlines.join(" ");
@@ -396,8 +396,10 @@ fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll
     let fulltext = re.replace_all(&*fulltext, "u");
     let re = Regex::new("j").unwrap();
     let fulltext = re.replace_all(&*fulltext, "i");
-    let re = Regex::new("[σς]]").unwrap();
+    let re = Regex::new("[σς]").unwrap();
     let fulltext = re.replace_all(&*fulltext, "ϲ");
+    let fulltext = sv_swapper(&fulltext);
+    // println!("{}", fulltext);
 
     let duration = start.elapsed();
     let m = format!("preliminary cleanups complete [C: {}]", format_duration(duration).to_string());
@@ -412,6 +414,12 @@ fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll
 
     let terminations: Vec<char> = vec!['.', '?', '!', '·', ';'];
     let splittext: Vec<&str> = fulltext.split(&terminations[..]).collect();
+
+    // alternate splitter: no real speed difference
+
+    // let re = Regex::new("[?!;·]").unwrap();
+    // let fulltext = re.replace_all(&*fulltext, ".");
+    // let splittext: Vec<&str> = fulltext.split(".").collect();
 
     let sentenceswithlocus: HashMap<String, String> = sv_buildsentences(splittext);
 
@@ -471,6 +479,8 @@ fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll
         }
     }
 
+    // note that capitalization issues mean that your morphmap can be longer than the total number of words
+
     let duration = start.elapsed();
     let m = format!("Built morphmap for {} items [G: {}]", morphmap.len(), format_duration(duration).to_string());
     lfl(m, ll, 2);
@@ -507,6 +517,7 @@ fn vector_prep(thekey: &str, b: &str, workers: i32, db: &str, s: i32, e: i32, ll
     let mut bags: Vec<String> = Vec::new();
     for b in bagged {
         if b.len() > 0 {
+            // println!("[bag] {}", &b);
             bags.push(b);
         }
     }
@@ -879,7 +890,7 @@ fn sv_buildsentences(splittext: Vec<&str>) -> HashMap<String, String> {
     // "Instead of trying to return a reference, return an owned object. String instead of &str, Vec<T> instead of &[T], T instead of &T, etc."]
 
     lazy_static! {
-        static ref TAGGER : Regex = Regex::new(" ⊏.*?⊐").unwrap();
+        static ref TAGGER : Regex = Regex::new("⊏.*?⊐").unwrap();
         static ref NOTCHAR : Regex = Regex::new("[^ a-zα-ωϲϹἀἁἂἃἄἅἆἇᾀᾁᾂᾃᾄᾅᾆᾇᾲᾳᾴᾶᾷᾰᾱὰάἐἑἒἓἔἕὲέἰἱἲἳἴἵἶἷὶίῐῑῒΐῖῗὀὁὂὃὄὅόὸὐὑὒὓὔὕὖὗϋῠῡῢΰῦῧύὺᾐᾑᾒᾓᾔᾕᾖᾗῂῃῄῆῇἤἢἥἣὴήἠἡἦἧὠὡὢὣὤὥὦὧᾠᾡᾢᾣᾤᾥᾦᾧῲῳῴῶῷώὼ]").unwrap();
         static ref LOCC : Regex = Regex::new("⊏(.*?)⊐").unwrap();
         }
@@ -888,12 +899,12 @@ fn sv_buildsentences(splittext: Vec<&str>) -> HashMap<String, String> {
 
     for s in splittext {
         let lcs = s.to_string().to_lowercase();
-        let thesentence = TAGGER.replace_all(&lcs, "").into_owned();
-        let thesentence = NOTCHAR.replace_all(&thesentence, "").into_owned();
         let firsthit: String = match LOCC.captures(s.clone()) {
             None => "".to_string(),
             Some(x) => x[1].to_string(),
         };
+        let thesentence = TAGGER.replace_all(&lcs, "").into_owned();
+        let thesentence = NOTCHAR.replace_all(&thesentence, "").into_owned();
         sentenceswithlocus.insert(firsthit, thesentence);
     }
     sentenceswithlocus
@@ -1008,7 +1019,7 @@ fn sv_buildwinnertakesallbags(ss: Vec<&str>, mm: HashMap<String, Vec<String>>, p
                 let mut poss: Vec<String> = mm[w].iter()
                     .map(|k| k.to_string())
                     .collect();
-                poss.sort_by_key(|k| if scoremap.contains_key(k) { lcscoremap[k] } else { 0 });
+                poss.sort_by_key(|k| if lcscoremap.contains_key(k) { lcscoremap[k] } else { 0 });
                 // poss.resize(1, "".to_string());
                 newparsemap.insert(w.clone(), poss.pop().unwrap());
             } else {
