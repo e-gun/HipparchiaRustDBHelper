@@ -3,3 +3,15 @@ quitting a connected browser will panic the ws:
 
 thread '<unnamed>' panicked at 'called `Result::unwrap()` on an `Err` value: ConnectionClosed', src/main.rs:585:45
 
+
+
+127.0.0.1 - - [23/Jun/2021 08:27:39] "GET /search/standard/21249c96?skg=dolor HTTP/1.1" 200 -
+thread '<unnamed>' panicked at 'called `Result::unwrap()` on an `Err` value: ConnectionClosed', src/main.rs:552:45
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+!!! HipparchiaRustDBHelper returned an error !!!
+>>> CompletedProcess(args=['/Users/erik/hipparchia_venv/HipparchiaServer/server/externalbinaries/HipparchiaRustDBHelper', '--svb', 'winnertakesall', '--k', 'vectorbot', '--l', '0', '--r', '{"Addr": "127.0.0.1:6379", "Password": "", "DB": 0}', '--p', '{"Host": "127.0.0.1", "Port": 5432, "User": "hippa_wr", "Pass": "xxELiTYyTNM4n6f", "DBName": "hipparchiaDB"}', '--sv'], returncode=101, stdout=b'Hipparchia Rust Helper CLI Debugging Interface (v.0.1.1)
+db_redisfectch found 1663 lines
+', stderr=b"thread 'main' panicked at 'no entry found for key', src/svfunctions.rs:343:28
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+")
+

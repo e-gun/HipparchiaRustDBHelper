@@ -324,6 +324,7 @@ pub fn sv_parallelbagloader(_id: Uuid, key: String, bags: Vec<String>, c: &mut r
 
 pub fn sv_loadthebags(key: String, mut bags: Vec<String>, workers: i32, rca: &str) {
     // load the bags of words into redis; parallelize this
+    let mut mutworkers = workers;
     let uworkers = usize::try_from(workers).unwrap();
     let totalwork = bags.len();
     let chunksize = totalwork / uworkers;
@@ -331,6 +332,7 @@ pub fn sv_loadthebags(key: String, mut bags: Vec<String>, workers: i32, rca: &st
     let mut bagmap: HashMap<i32, Vec<String>> = HashMap::new();
 
     if totalwork <= uworkers {
+        mutworkers = 1;
         bagmap.insert(0, bags.drain(totalwork..).collect());
     } else {
         for i in 0..workers {
@@ -338,7 +340,7 @@ pub fn sv_loadthebags(key: String, mut bags: Vec<String>, workers: i32, rca: &st
         }
     }
 
-    let handles: Vec<thread::JoinHandle<_>> = (0..workers)
+    let handles: Vec<thread::JoinHandle<_>> = (0..mutworkers)
         .map(|w| {
             let thisbag = &bagmap[&w].clone();
             let thisbag = thisbag.to_vec();
