@@ -5,7 +5,7 @@
 
 use regex::Regex;
 use std::collections::HashMap;
-use std::{thread, time};
+use std::thread;
 use std::convert::TryFrom;
 use uuid::Uuid;
 
@@ -62,7 +62,7 @@ pub fn sv_swapper(text: &str) -> String {
     swapper.insert("Nov.", "Novembris");
     swapper.insert("Dec.", "Decembris");
 
-    let mut words: Vec<&str> = text.split_ascii_whitespace().collect();
+    let words: Vec<&str> = text.split_ascii_whitespace().collect();
     let newwords: Vec<&str> = words.iter()
         .map(|w| if swapper.contains_key(w) { swapper[w]} else { w })
         .collect();
@@ -314,11 +314,11 @@ pub fn sv_dropstopwords(todrop: &str, bags: Vec<String>) -> Vec<String> {
     cleaned
 }
 
-pub fn sv_parallelbagloader(id: Uuid, key: String, bags: Vec<String>, c: &mut redis::Connection) {
+pub fn sv_parallelbagloader(_id: Uuid, key: String, bags: Vec<String>, c: &mut redis::Connection) {
     // a worker for sv_loadthebags()
     // println!("sv_parallelbagloader worker {} has {} bags", id.to_string(), bags.len());
     for b in bags {
-        rs_sadd(key.as_str(), b.as_str(), c);
+        let _ = rs_sadd(key.as_str(), b.as_str(), c);
     }
 }
 
@@ -362,7 +362,7 @@ pub fn sv_loadthebags(key: String, mut bags: Vec<String>, workers: i32, rca: &st
 
 }
 
-pub fn sv_parallelmorphology() {
+pub fn _sv_parallelmorphology() {
     // https://stackoverflow.com/questions/57649032/returning-a-value-from-a-function-that-spawns-threads
     // TODO...
 }

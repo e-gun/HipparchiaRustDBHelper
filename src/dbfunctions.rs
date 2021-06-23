@@ -3,8 +3,8 @@
 //    License: GNU GENERAL PUBLIC LICENSE 3
 //        (see LICENSE in the top level directory of the distribution)
 
-use postgres::{Client, Error, NoTls};
-use redis::{Commands, Connection};
+use postgres::{Client, NoTls};
+use redis::Commands;
 use uuid::Uuid;
 
 use std::collections::HashMap;
@@ -20,7 +20,7 @@ pub fn postgresconnect(j: String) -> postgres::Client {
     let port = parsed["Port"].as_i32().unwrap();
     let pw = parsed["Pass"].as_str().unwrap();
     let validate = format!("host={} user={} dbname={} port={} password={}", &host, &user, &db, &port, &pw);
-    let mut client = Client::connect(&validate, NoTls).expect("failed to connect to postgreSQL");
+    let client = Client::connect(&validate, NoTls).expect("failed to connect to postgreSQL");
     client
 }
 
@@ -117,7 +117,7 @@ pub fn db_redisfectch(thekey: &str, pg: &str, rc: &str) -> Vec<DBLine> {
         let parsed = json::parse(j.as_str()).unwrap();
         let t = parsed["TempTable"].as_str().unwrap();
         let q = parsed["PsqlQuery"].as_str().unwrap();
-        let d = parsed["PsqlData"].as_str().unwrap();  // never any data, right...?
+        let _d = parsed["PsqlData"].as_str().unwrap();  // never any data, right...?
 
         // [d] build a temp table if needed
         if &t != &"" {

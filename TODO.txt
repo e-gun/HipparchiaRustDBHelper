@@ -1,0 +1,5 @@
+
+quitting a connected browser will panic the ws:
+
+thread '<unnamed>' panicked at 'called `Result::unwrap()` on an `Err` value: ConnectionClosed', src/main.rs:585:45
+

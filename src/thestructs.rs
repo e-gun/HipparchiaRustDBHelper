@@ -28,14 +28,6 @@ pub struct DbMorphology {
     pub upo: Vec<String>,
 }
 
-pub struct MorphPossibility {
-    pub obs: String,
-    pub num: String,
-    pub ent: String,
-    pub xrf: String,
-    pub ana: String,
-}
-
 pub struct WeightedHeadword {
     pub wd: String,
     pub ct: i32,
