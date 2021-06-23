@@ -29,6 +29,37 @@ static HITSDEFAULT: &str = "200";
 static PSQ: &str = r#"{"Host": "localhost", "Port": 5432, "User": "hippa_wr", "Pass": "", "DBName": "hipparchiaDB"}"#;
 static RP: &str = r#"{"Addr": "localhost:6379", "Password": "", "DB": 0}"#;
 
+// Hipparchia Rust Helper CLI Debugging Interface (v.0.1.1)
+// Hipparchia Rust Helper 0.1.1
+//
+// USAGE:
+//     hipparchia_rust_dbhelper [FLAGS] [OPTIONS]
+//
+// FLAGS:
+//     -h, --help       Prints help information
+//         --sv         [vectors] assert that this is a vectorizing run
+//     -V, --version    Prints version information
+//         --ws         [websockets] assert that you are requesting the websocket server
+//
+// OPTIONS:
+//         --c <c>          [searches] max hit count [default: 200]
+//         --k <k>          [searches] redis key to use [default: rusttest]
+//         --l <l>          [common] logging level [default: 0]
+//         --p <p>          [common] postgres login info (as JSON) [default: {"Host": "localhost", "Port": 5432, "User":
+//                          "hippa_wr", "Pass": "", "DBName": "hipparchiaDB"}]
+//         --r <r>          [common] redis login info (as JSON) [default: {"Addr": "localhost:6379", "Password": "", "DB":
+//                          0}]
+//         --svb <svb>      [vectors] the bagging method: choices are alternates, flat, unlemmatized, winnertakesall
+//                          [default: winnertakesall]
+//         --svdb <svdb>    [vectors][for manual debugging] db to grab from [default: lt0448]
+//         --sve <sve>      [vectors][for manual debugging] last line to grab [default: 26]
+//         --svs <svs>      [vectors][for manual debugging] first line to grab [default: 1]
+//         --t <t>          [common] number of workers to dispatch [default: 5]
+//         --wsf <wsf>      [websockets] fail threshold before messages stop being sent [default: 4]
+//         --wsh <wsh>      [websockets] IP address to open up [default: 127.0.0.1]
+//         --wsp <wsp>      [websockets] port on which to open the websocket server [default: 5010]
+//         --wss <wss>      [websockets] save the polls instead of deleting them: 0 is no; 1 is yes [default: 0]
+
 fn main() {
     println!("{} CLI Debugging Interface (v.{})", MYNAME, VERSION);
     // cli stuff
@@ -107,7 +138,7 @@ fn main() {
             .long("wss")
             .takes_value(true)
             .help("[websockets] save the polls instead of deleting them: 0 is no; 1 is yes")
-            .default_value("1"))
+            .default_value("0"))
         .arg(Arg::with_name("wsh")
             .long("wsh")
             .takes_value(true)
@@ -131,8 +162,10 @@ fn main() {
     if cli.is_present("ws") {
         let m: String = format!("requested the websocket() branch of the code");
         lfl(m, ll, 1);
+        let save = cli.value_of("wss").unwrap();
+        let s: i32 = save.parse().unwrap();
         // note that websocket() will never return
-        websocket(ft, ll, ip, port, rc.to_string());
+        websocket(ft, ll, ip, port, s, rc.to_string());
     }
 
     let thekey: &str = cli.value_of("k").unwrap();
@@ -144,7 +177,6 @@ fn main() {
         let db = cli.value_of("svdb").unwrap();
         let sta = cli.value_of("svs").unwrap().parse().unwrap();
         let end = cli.value_of("sve").unwrap().parse().unwrap();
-        // build more of the cli interface to get rid of TEST... items
         let resultkey: String = vector_prep(&thekey, &b, workers, db, sta, end, ll, &pg, &rc);
         println!("{}", resultkey);
     } else {
@@ -152,6 +184,7 @@ fn main() {
         // note that a fn grabber() gets into a lifetime problem w/ thread::spawn()
         let m: String = format!("requested the grabber() branch of the code");
         lfl(m, ll, 1);
-        grabber(cli.clone(), thekey.to_string(), ll, workers, rc.to_string());
+        let resultkey: String = grabber(cli.clone(), thekey.to_string(), ll, workers, rc.to_string());
+        println!("{}", resultkey);
     }
 }

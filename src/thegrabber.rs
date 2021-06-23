@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::dbfunctions::*;
 use crate::helpers::*;
 
-pub fn grabber(cliclone: ArgMatches<'static>, thekey: String, ll: i32, workers: i32, rc: String) {
+pub fn grabber(cliclone: ArgMatches<'static>, thekey: String, ll: i32, workers: i32, rc: String) -> String {
     // the GRABBER is supposed to be pointedly basic
     //
     // [a] it looks to redis for a pile of SQL queries that were pre-rolled
@@ -58,7 +58,7 @@ pub fn grabber(cliclone: ArgMatches<'static>, thekey: String, ll: i32, workers: 
     lfl(m, ll, 1);
 
     let resultkey = format!("{}_results", &thekey);
-    println!("{}", resultkey);
+    resultkey
 }
 
 fn grabworker(id: Uuid, cap: &i32, thekey: &str, pg: &str, rc: &str) -> Result<(), Error> {

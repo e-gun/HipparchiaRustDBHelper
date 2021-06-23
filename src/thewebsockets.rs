@@ -18,7 +18,7 @@ use crate::helpers::*;
 
 static POLLINGINTERVAL: Duration = Duration::from_millis(400);
 
-pub fn websocket(ft: &str, ll: i32, ip: &str, port: &str, rc: String) {
+pub fn websocket(ft: &str, ll: i32, ip: &str, port: &str, save: i32, rc: String) {
     //  WEBSOCKETS broadcasts search information for web page updates
     //
     //	[a] it launches and starts listening on a port
@@ -110,9 +110,17 @@ pub fn websocket(ft: &str, ll: i32, ip: &str, port: &str, rc: String) {
                     }
 
                     //	[e] when the poll disappears from redis, the messages stop broadcasting
-                    // INCOMPLETE relative to the golang version
-                    // still missing:
                     // deletewhendone()
+                    if save != 0 {
+                        let thekey: String = format!("{}_poolofwork", rediskey);
+                        let _ = rs_set_int(thekey.as_str(), -1, &mut redisconn);
+                        let fields =  ws_fields();
+                        for f in fields {
+                            let _ = rs_del(f, &mut redisconn);
+                        }
+                        let m = format!("deleted redis keys for {}", &rediskey);
+                        lfl(m, ll, 4);
+                    }
                 }
             }
         });
