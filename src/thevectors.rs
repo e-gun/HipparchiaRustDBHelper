@@ -140,7 +140,7 @@ pub fn vector_prep(thekey: &str, b: &str, _workers: i32, bagsize: i32, db: &str,
     // [e] figure out all of the words used in the passage
 
     let sentences: Vec<&str> = sentenceswithlocus.keys().map(|x| sentenceswithlocus[x].as_str()).collect();
-    let allwords: Vec<&str> = sv_findallwords(sentences.clone());
+    let allwords: Vec<&str> = sv_findallwords(sentences);
 
     let duration = start.elapsed();
     let m = format!("found {} words [E: {}]", allwords.len(), format_duration(duration).to_string());
