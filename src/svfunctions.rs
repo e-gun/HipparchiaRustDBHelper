@@ -70,7 +70,7 @@ pub fn sv_swapper(text: &str) -> String {
     newtext
 }
 
-pub fn sv_buildsentences(splittext: Vec<&str>) -> HashMap<String, String> {
+pub fn sv_buildsentences(splittext: Vec<&str>, bagsize: i32) -> HashMap<String, String> {
     // if HashMap<&str, &str> compile error: returns a value referencing data owned by the current function
     // see: https://stackoverflow.com/questions/32682876/is-there-any-way-to-return-a-reference-to-a-variable-created-in-a-function
     // "Instead of trying to return a reference, return an owned object. String instead of &str, Vec<T> instead of &[T], T instead of &T, etc."]
@@ -81,16 +81,37 @@ pub fn sv_buildsentences(splittext: Vec<&str>) -> HashMap<String, String> {
 
     let mut sentenceswithlocus: HashMap<String, String> = HashMap::new();
 
-    for s in splittext {
-        let lcs = s.to_string().to_lowercase();
-        let firsthit: String = match locc.captures(s.clone()) {
+    let mut splittext: Vec<&str> = splittext.into_iter().rev().collect();
+    // x.into_iter().rev().collect();
+    while  splittext.len() > 0 {
+        let mut parcel = String::new();
+        for _ in 0..bagsize {
+            parcel.push_str(splittext.pop().unwrap_or(""));
+        }
+        let lcs = parcel.to_lowercase();
+        let firsthit: String = match locc.captures(&lcs.as_str()) {
             None => "".to_string(),
             Some(x) => x[1].to_string(),
         };
         let thesentence = tagger.replace_all(&lcs, "").into_owned();
         let thesentence = notachar.replace_all(&thesentence, "").into_owned();
+
+        // println!("{}: {}", firsthit, thesentence);
         sentenceswithlocus.insert(firsthit, thesentence);
+
     }
+
+    // for s in splittext {
+    //     let lcs = s.to_string().to_lowercase();
+    //     let firsthit: String = match locc.captures(s.clone()) {
+    //         None => "".to_string(),
+    //         Some(x) => x[1].to_string(),
+    //     };
+    //     let thesentence = tagger.replace_all(&lcs, "").into_owned();
+    //     let thesentence = notachar.replace_all(&thesentence, "").into_owned();
+    //     sentenceswithlocus.insert(firsthit, thesentence);
+    // }
+
     sentenceswithlocus
 }
 
@@ -361,7 +382,6 @@ pub fn sv_loadthebags(key: String, mut bags: Vec<String>, workers: i32, rca: &st
 
     let mut rc = redisconnect(rca.to_string());
     sv_parallelbagloader(Uuid::new_v4(), key.clone(), bags, &mut rc);
-
 }
 
 pub fn _sv_parallelmorphology() {

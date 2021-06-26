@@ -19,7 +19,7 @@ mod thevectors;
 mod thegrabber;
 
 static MYNAME: &str = "Hipparchia Rust Helper";
-static VERSION: &str = "0.1.1";
+static VERSION: &str = "0.1.2";
 static TESTDB: &str = "lt0448";
 static TESTSTART: &str = "1";
 static TESTEND: &str = "26";
@@ -29,8 +29,8 @@ static HITSDEFAULT: &str = "200";
 static PSQ: &str = r#"{"Host": "localhost", "Port": 5432, "User": "hippa_wr", "Pass": "", "DBName": "hipparchiaDB"}"#;
 static RP: &str = r#"{"Addr": "localhost:6379", "Password": "", "DB": 0}"#;
 
-// Hipparchia Rust Helper CLI Debugging Interface (v.0.1.1)
-// Hipparchia Rust Helper 0.1.1
+// Hipparchia Rust Helper CLI Debugging Interface (v.0.1.2)
+// Hipparchia Rust Helper 0.1.2
 //
 // USAGE:
 //     hipparchia_rust_dbhelper [FLAGS] [OPTIONS]
@@ -51,6 +51,7 @@ static RP: &str = r#"{"Addr": "localhost:6379", "Password": "", "DB": 0}"#;
 //                          0}]
 //         --svb <svb>      [vectors] the bagging method: choices are alternates, flat, unlemmatized, winnertakesall
 //                          [default: winnertakesall]
+//         --svbs <svbs>    [vectors] number of sentences per bag [default: 1]
 //         --svdb <svdb>    [vectors][for manual debugging] db to grab from [default: lt0448]
 //         --sve <sve>      [vectors][for manual debugging] last line to grab [default: 26]
 //         --svs <svs>      [vectors][for manual debugging] first line to grab [default: 1]
@@ -105,6 +106,11 @@ fn main() {
             .takes_value(true)
             .help("[vectors] the bagging method: choices are alternates, flat, unlemmatized, winnertakesall")
             .default_value("winnertakesall"))
+        .arg(Arg::with_name("svbs")
+            .long("svbs")
+            .takes_value(true)
+            .help("[vectors] number of sentences per bag")
+            .default_value("1"))
         .arg(Arg::with_name("svdb")
             .long("svdb")
             .takes_value(false)
@@ -174,10 +180,11 @@ fn main() {
         let m: String = format!("requested the vector_prep() branch of the code");
         lfl(m, ll, 1);
         let b = cli.value_of("svb").unwrap();
+        let bs = cli.value_of("svbs").unwrap().parse().unwrap();
         let db = cli.value_of("svdb").unwrap();
         let sta = cli.value_of("svs").unwrap().parse().unwrap();
         let end = cli.value_of("sve").unwrap().parse().unwrap();
-        let resultkey: String = vector_prep(&thekey, &b, workers, db, sta, end, ll, &pg, &rc);
+        let resultkey: String = vector_prep(&thekey, &b, workers, bs, db, sta, end, ll, &pg, &rc);
         println!("{}", resultkey);
     } else {
         // if neither "ws" or "vs", then you are a "grabber"
