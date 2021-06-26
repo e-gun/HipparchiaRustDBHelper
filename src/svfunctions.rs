@@ -3,6 +3,7 @@
 //    License: GNU GENERAL PUBLIC LICENSE 3
 //        (see LICENSE in the top level directory of the distribution)
 
+use redis::RedisResult;
 use regex::Regex;
 use std::collections::HashMap;
 use std::thread;
@@ -337,10 +338,17 @@ pub fn sv_dropstopwords(todrop: &str, bags: Vec<String>) -> Vec<String> {
 
 pub fn sv_parallelbagloader(_id: Uuid, key: String, bags: Vec<String>, c: &mut redis::Connection) {
     // a worker for sv_loadthebags()
-    // println!("sv_parallelbagloader worker {} has {} bags", id.to_string(), bags.len());
+
+    // pipeline...
+    // https://asosunag.github.io/redis-client/redis_client/
+    // https://docs.rs/redis/0.13.0/redis/struct.Pipeline.html
+    // https://github.com/mitsuhiko/redis-rs/blob/master/examples/basic.rs
+
+    let mut pipe = redis::pipe();
     for b in bags {
-        let _ = rs_sadd(key.as_str(), b.as_str(), c);
+        pipe.cmd("SADD").arg(key.as_str()).arg(b.as_str()).ignore();
     }
+    let _: RedisResult<()> = pipe.query(c);
 }
 
 pub fn sv_loadthebags(key: String, mut bags: Vec<String>, workers: i32, rca: &str) {

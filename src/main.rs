@@ -19,7 +19,7 @@ mod thevectors;
 mod thegrabber;
 
 static MYNAME: &str = "Hipparchia Rust Helper";
-static VERSION: &str = "0.1.2";
+static VERSION: &str = "0.1.3";
 static TESTDB: &str = "lt0448";
 static TESTSTART: &str = "1";
 static TESTEND: &str = "26";
