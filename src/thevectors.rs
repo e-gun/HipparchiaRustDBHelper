@@ -18,7 +18,7 @@ static SKIPHEADWORDS: &str = "unus verum omne sum¹ ab δύο πρότεροϲ �
 static SKIPINFLECTED: &str = "ita a inquit ego die nunc nos quid πάντων ἤ με θεόν δεῖ for igitur ϲύν b uers p ϲου τῷ εἰϲ ergo ἐπ ὥϲτε sua me πρό sic aut nisi rem πάλιν ἡμῶν φηϲί παρά ἔϲτι αὐτῆϲ τότε eos αὐτούϲ λέγει cum τόν quidem ἐϲτιν posse αὐτόϲ post αὐτῶν libro m hanc οὐδέ fr πρῶτον μέν res ἐϲτι αὐτῷ οὐχ non ἐϲτί modo αὐτοῦ sine ad uero fuit τοῦ ἀπό ea ὅτι parte ἔχει οὔτε ὅταν αὐτήν esse sub τοῦτο i omnes break μή ἤδη ϲοι sibi at mihi τήν in de τούτου ab omnia ὃ ἦν γάρ οὐδέν quam per α autem eius item ὡϲ sint length οὗ λόγον eum ἀντί ex uel ἐπειδή re ei quo ἐξ δραχμαί αὐτό ἄρα ἔτουϲ ἀλλ οὐκ τά ὑπέρ τάϲ μάλιϲτα etiam haec nihil οὕτω siue nobis si itaque uac erat uestig εἶπεν ἔϲτιν tantum tam nec unde qua hoc quis iii ὥϲπερ semper εἶναι e ½ is quem τῆϲ ἐγώ καθ his θεοῦ tibi ubi pro ἄν πολλά τῇ πρόϲ l ἔϲται οὕτωϲ τό ἐφ ἡμῖν οἷϲ inter idem illa n se εἰ μόνον ac ἵνα ipse erit μετά μοι δι γε enim ille an sunt esset γίνεται omnibus ne ἐπί τούτοιϲ ὁμοίωϲ παρ causa neque cr ἐάν quos ταῦτα h ante ἐϲτίν ἣν αὐτόν eo ὧν ἐπεί οἷον sed ἀλλά ii ἡ t te ταῖϲ est sit cuius καί quasi ἀεί o τούτων ἐϲ quae τούϲ minus quia tamen iam d διά primum r τιϲ νῦν illud u apud c ἐκ δ quod f quoque tr τί ipsa rei hic οἱ illi et πῶϲ φηϲίν τοίνυν s magis unknown οὖν dum text μᾶλλον λόγοϲ habet τοῖϲ qui αὐτοῖϲ suo πάντα uacat τίϲ pace ἔχειν οὐ κατά contra δύο ἔτι αἱ uet οὗτοϲ deinde id ut ὑπό τι lin ἄλλων τε tu ὁ cf δή potest ἐν eam tum μου nam θεόϲ κατ ὦ cui nomine περί atque δέ quibus ἡμᾶϲ τῶν eorum";
 static TERMINATIONS: &str = ".?!;·";
 
-pub fn vector_prep(thekey: &str, b: &str, workers: i32, bagsize: i32, db: &str, s: i32, e: i32, ll: i32, psq: &str, rca: &str) -> String {
+pub fn vector_prep(thekey: &str, b: &str, _workers: i32, bagsize: i32, db: &str, s: i32, e: i32, ll: i32, psq: &str, rca: &str) -> String {
     // VECTOR PREP builds bags for modeling; to do this you need to...
     //
     // [a] grab db lines that are relevant to the search
@@ -188,13 +188,14 @@ pub fn vector_prep(thekey: &str, b: &str, workers: i32, bagsize: i32, db: &str, 
     // [h] build the lemmatized bags of words
 
     // no: the baggers really should retain the locus info; this will prevent collisions in the redis set
+    // TODO / IN PROGRESS
 
-    let bagged: Vec<String>  = match b {
-        "flat" => sv_buildflatbags(sentences.to_owned(), morphmap),
-        "alternates" => sv_buildcompositebags(sentences.to_owned(), morphmap),
-        "winnertakesall" => sv_buildwinnertakesallbags(sentences.to_owned(), morphmap, &mut pg),
+    let bagged: HashMap<String, String>  = match b {
+        "flat" => sv_buildflatbags(sentenceswithlocus.to_owned(), morphmap),
+        "alternates" => sv_buildcompositebags(sentenceswithlocus.to_owned(), morphmap),
+        "winnertakesall" => sv_buildwinnertakesallbags(sentenceswithlocus.to_owned(), morphmap, &mut pg),
         // should never hit this but...
-        _ => sentences.iter().map(|s| s.to_string()).collect(),
+        _ => sentenceswithlocus,
     };
 
     // for b in &bagged {
@@ -209,15 +210,16 @@ pub fn vector_prep(thekey: &str, b: &str, workers: i32, bagsize: i32, db: &str, 
 
     // [i] purge stopwords
 
-    let bagged: Vec<String> = sv_dropstopwords(SKIPHEADWORDS, bagged);
-    let bagged: Vec<String> = sv_dropstopwords(SKIPINFLECTED, bagged);
+    let bagged: HashMap<String, String> = sv_dropstopwords(SKIPHEADWORDS, bagged);
+    let bagged: HashMap<String, String> = sv_dropstopwords(SKIPINFLECTED, bagged);
 
     // no empty bags...
-    let mut bags: Vec<String> = Vec::new();
-    for b in bagged {
-        if b.len() > 0 {
+    let mut bags: HashMap<String, String> = HashMap::new();
+    for b in bagged.keys() {
+        let thisbag = bagged[b].clone();
+        if thisbag.len() > 0 {
             // println!("[bag] {}", &b);
-            bags.push(b);
+            bags.insert(b.clone(), thisbag);
         }
     }
 
@@ -229,7 +231,7 @@ pub fn vector_prep(thekey: &str, b: &str, workers: i32, bagsize: i32, db: &str, 
 
     let resultkey = format!("{}_vectorresults", &thekey);
     let bl = bags.len();
-    sv_loadthebags(resultkey.clone(), bags, workers, rca);
+    sv_loadthebags(resultkey.clone(), bags, rca);
 
     let duration = start.elapsed();
     let m = format!("Stored {} bags [J: {}]", bl, format_duration(duration).to_string());

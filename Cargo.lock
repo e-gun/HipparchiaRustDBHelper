@@ -342,7 +342,7 @@ dependencies = [
 
 [[package]]
 name = "hipparchia_rust_dbhelper"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "clap",
  "env_logger",
