@@ -344,6 +344,12 @@ pub fn sv_parallelbagloader(_id: Uuid, key: String, bags: Vec<String>, c: &mut r
     // https://docs.rs/redis/0.13.0/redis/struct.Pipeline.html
     // https://github.com/mitsuhiko/redis-rs/blob/master/examples/basic.rs
 
+    // this contains a logc flaw at the moment
+    // the golang verson sends json of a location+bag; there will be no collisions
+    // this sends bags; there can easily be collisions
+
+
+
     let mut pipe = redis::pipe();
     for b in bags {
         pipe.cmd("SADD").arg(key.as_str()).arg(b.as_str()).ignore();

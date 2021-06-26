@@ -187,6 +187,8 @@ pub fn vector_prep(thekey: &str, b: &str, workers: i32, bagsize: i32, db: &str, 
 
     // [h] build the lemmatized bags of words
 
+    // no: the baggers really should retain the locus info; this will prevent collisions in the redis set
+
     let bagged: Vec<String>  = match b {
         "flat" => sv_buildflatbags(sentences.to_owned(), morphmap),
         "alternates" => sv_buildcompositebags(sentences.to_owned(), morphmap),

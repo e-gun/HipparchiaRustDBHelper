@@ -108,29 +108,29 @@ so should implement the deabbreviator to fix that...
 
 ===
 
-builder 1.5.0b lets you skip the regex and look what happens: 10x faster
+builder 1.5.0b lets you skip the regex and look what happens: 10x faster + pipelined redis gets us to where we want to be...
 
-1219 •erik@big-sur-box• rust/HipparchiaRustDBHelper/ % ./target/release/hipparchia_rust_dbhelper  --sv --l 3 --p ${L} --svdb lt0474 --svs 1 --sve 149570
-Hipparchia Rust Helper CLI Debugging Interface (v.0.0.7)
+1028 •erik@big-sur-box• rust/HipparchiaRustDBHelper/ % ./target/release/HipparchiaRustDBHelper  --sv --l 3 --p ${L} --svdb lt0474 --svs 4 --sve 149570
+Hipparchia Rust Helper CLI Debugging Interface (v.0.1.3)
 [HRH] requested the vector_prep() branch of the code
 [HRH] Seeking to build winnertakesall bags of words
 [HRH] No redis key; gathering lines with a direct CLI PostgreSQL query)
-[HRH] 149570 dblines fetched [A: 354ms 611us 633ns]
-[HRH] unified text block built [B: 414ms 414us 366ns]
-[HRH] preliminary cleanups complete [C: 543ms 104us 416ns]
-[HRH] found 67980 sentences [D: 788ms 188us 134ns]
-[HRH] found 81507 words [E: 917ms 181us 728ns]
-[HRH] found 83320 morphology objects [F: 1s 763ms 563us 976ns]
-[HRH] Built morphmap for 81663 items [G: 1s 817ms 811us 83ns]
-[HRH] Built 67980 bags [H: 2s 514ms 489us 986ns]
-[HRH] Purged stopwords in 67388 bags [I: 2s 731ms 155us 379ns]
-[HRH] Stored 67388 bags [J: 4s 582ms 941us 903ns]
+[HRH] 149567 dblines fetched [A: 361ms 203us 710ns]
+[HRH] unified text block built [B: 420ms 570us 802ns]
+[HRH] preliminary cleanups complete [C: 542ms 121us 187ns]
+[HRH] found 67980 sentences [D: 803ms 534us 341ns]
+[HRH] found 81507 words [E: 950ms 600us 645ns]
+[HRH] found 83320 morphology objects [F: 1s 789ms 505us 967ns]
+[HRH] Built morphmap for 81663 items [G: 1s 851ms 859us 940ns]
+[HRH] Built 67980 bags [H: 2s 559ms 985us 645ns]
+[HRH] Purged stopwords in 67389 bags [I: 2s 775ms 940us 253ns]
+[HRH] Stored 67389 bags [J: 2s 924ms 4us 31ns]
 rusttest_vectorresults
 
 ===
 
 
-the great sentences mystery
+the great sentences mystery [--sve 149570]
 
 python's cicero:
 
@@ -139,12 +139,12 @@ python's cicero:
 
 golang's cicero:
 
-[HGH] [D: 1.494s][Δ: 1.019s] Found 73023 sentences
+[HGH] [D: 1.537s][Δ: 1.017s] Inserted 72930 sentences into 72930 bags
 
 
 rust's cicero:
 
-[HRH] found 77399 sentences [D: 799ms 38us 103ns]
+[HRH] found 67980 sentences [D: 646ms 880us 781ns]
 
 
 ====
