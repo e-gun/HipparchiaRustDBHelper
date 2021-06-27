@@ -3,6 +3,8 @@
 //    License: GNU GENERAL PUBLIC LICENSE 3
 //        (see LICENSE in the top level directory of the distribution)
 
+use std::process;
+
 use clap::{App, Arg, ArgMatches};
 
 use crate::helpers::*;
@@ -19,7 +21,7 @@ mod thevectors;
 mod thegrabber;
 
 static MYNAME: &str = "Hipparchia Rust Helper";
-static VERSION: &str = "0.1.4";
+static VERSION: &str = "0.1.5";
 static TESTDB: &str = "lt0448";
 static TESTSTART: &str = "1";
 static TESTEND: &str = "26";
@@ -29,15 +31,16 @@ static HITSDEFAULT: &str = "200";
 static PSQ: &str = r#"{"Host": "localhost", "Port": 5432, "User": "hippa_wr", "Pass": "", "DBName": "hipparchiaDB"}"#;
 static RP: &str = r#"{"Addr": "localhost:6379", "Password": "", "DB": 0}"#;
 
-// Hipparchia Rust Helper CLI Debugging Interface (v.0.1.2)
-// Hipparchia Rust Helper 0.1.2
+// Hipparchia Rust Helper CLI Debugging Interface (v.0.1.5)
+// Hipparchia Rust Helper 0.1.5
 //
 // USAGE:
-//     hipparchia_rust_dbhelper [FLAGS] [OPTIONS]
+//     HipparchiaRustDBHelper [FLAGS] [OPTIONS]
 //
 // FLAGS:
 //     -h, --help       Prints help information
 //         --sv         [vectors] assert that this is a vectorizing run
+//         --v          [common] print version and exit
 //     -V, --version    Prints version information
 //         --ws         [websockets] assert that you are requesting the websocket server
 //
@@ -150,6 +153,10 @@ fn main() {
             .takes_value(true)
             .help("[websockets] IP address to open up")
             .default_value("127.0.0.1"))
+        .arg(Arg::with_name("v")
+            .long("v")
+            .takes_value(false)
+            .help("[common] print version and exit"))
         .get_matches();
 
     let ft = cli.value_of("wsf").unwrap();
@@ -164,6 +171,12 @@ fn main() {
 
     let rc = cli.value_of("r").unwrap();
     let pg = cli.value_of("p").unwrap();
+
+    if cli.is_present("v") {
+        // no need to do anything special, this will already automatically give you
+        // "Hipparchia Rust Helper CLI Debugging Interface (v.0.1.5)", vel sim.
+        process::exit(1);
+    }
 
     if cli.is_present("ws") {
         let m: String = format!("requested the websocket() branch of the code");
