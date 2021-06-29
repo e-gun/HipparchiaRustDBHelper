@@ -21,7 +21,7 @@ mod thevectors;
 mod thegrabber;
 
 static MYNAME: &str = "Hipparchia Rust Helper";
-static VERSION: &str = "0.1.5";
+static VERSION: &str = "0.1.6";
 static TESTDB: &str = "lt0448";
 static TESTSTART: &str = "1";
 static TESTEND: &str = "26";
@@ -65,7 +65,6 @@ static RP: &str = r#"{"Addr": "localhost:6379", "Password": "", "DB": 0}"#;
 //         --wss <wss>      [websockets] save the polls instead of deleting them: 0 is no; 1 is yes [default: 0]
 
 fn main() {
-    println!("{} CLI Debugging Interface (v.{})", MYNAME, VERSION);
     // cli stuff
     // .arg(Arg::with_name().long().takes_value().help())
     let cli: ArgMatches = App::new(MYNAME)
@@ -172,9 +171,11 @@ fn main() {
     let rc = cli.value_of("r").unwrap();
     let pg = cli.value_of("p").unwrap();
 
+    let m: String = format!("{} CLI Debugging Interface (v.{})", MYNAME, VERSION);
+    lfl(m.clone(), ll, 1);
+
     if cli.is_present("v") {
-        // no need to do anything special, this will already automatically give you
-        // "Hipparchia Rust Helper CLI Debugging Interface (v.0.1.5)", vel sim.
+        print!("{}", m);
         process::exit(1);
     }
 
@@ -188,6 +189,7 @@ fn main() {
     }
 
     let thekey: &str = cli.value_of("k").unwrap();
+    // python is going to read the resultkey, so you have to print it
 
     if cli.is_present("sv") {
         let m: String = format!("requested the vector_prep() branch of the code");
@@ -198,13 +200,14 @@ fn main() {
         let sta = cli.value_of("svs").unwrap().parse().unwrap();
         let end = cli.value_of("sve").unwrap().parse().unwrap();
         let resultkey: String = vector_prep(&thekey, &b, workers, bs, db, sta, end, ll, &pg, &rc);
-        println!("{}", resultkey);
+        // next has to be println! and not print!
+        print!("{}", resultkey);
     } else {
         // if neither "ws" or "vs", then you are a "grabber"
         // note that a fn grabber() gets into a lifetime problem w/ thread::spawn()
         let m: String = format!("requested the grabber() branch of the code");
         lfl(m, ll, 1);
         let resultkey: String = grabber(cli.clone(), thekey.to_string(), ll, workers, rc.to_string());
-        println!("{}", resultkey);
+        print!("{}", resultkey);
     }
 }

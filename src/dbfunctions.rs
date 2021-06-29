@@ -145,7 +145,7 @@ pub fn db_redisfectch(thekey: &str, pg: &str, rc: &str) -> Vec<DBLine> {
             }).collect::<Vec<DBLine>>();
         foundlines.extend(thelines);
     }
-    println!("db_redisfectch found {} lines", &foundlines.len());
+    // println!("db_redisfectch found {} lines", &foundlines.len());
     foundlines
 }
 

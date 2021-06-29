@@ -43,7 +43,7 @@ pub fn grabber(cliclone: ArgMatches<'static>, thekey: String, ll: i32, workers: 
                 let k = a.value_of("k").unwrap();
                 let pg = a.value_of("p").unwrap();
                 let rc = a.value_of("r").unwrap();
-                grabworker(Uuid::new_v4(), &cap.clone(), &k, &pg, &rc).unwrap();
+                grabworker(Uuid::new_v4(), &cap.clone(), &k, ll, &pg, &rc).unwrap();
             })
         })
         .collect::<Vec<thread::JoinHandle<_>>>();
@@ -61,7 +61,7 @@ pub fn grabber(cliclone: ArgMatches<'static>, thekey: String, ll: i32, workers: 
     resultkey
 }
 
-fn grabworker(id: Uuid, cap: &i32, thekey: &str, pg: &str, rc: &str) -> Result<(), Error> {
+fn grabworker(id: Uuid, cap: &i32, thekey: &str, ll: i32, pg: &str, rc: &str) -> Result<(), Error> {
     // this is where all of the work happens
     let mut redisconn = redisconnect(rc.to_string());
     let mut psqlclient = postgresconnect(pg.to_string());
@@ -74,7 +74,7 @@ fn grabworker(id: Uuid, cap: &i32, thekey: &str, pg: &str, rc: &str) -> Result<(
         let j = rs_spop(&thekey, &mut redisconn);
         if &j == &"" {
             let m = format!("{} ran out of work on pass #{}", &id, &passes);
-            lfl(m, 0, 0);
+            lfl(m, ll, 3);
             break
         }
 
