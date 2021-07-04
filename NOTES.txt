@@ -111,20 +111,21 @@ so should implement the deabbreviator to fix that...
 builder 1.5.0b lets you skip the regex and look what happens: 10x faster + pipelined redis gets us to where we want to be...
 
 ./target/release/HipparchiaRustDBHelper  --sv --l 3 --p ${L} --svdb lt0474 --svs 4 --sve 149570 --t 6
-Hipparchia Rust Helper CLI Debugging Interface (v.0.1.4)
+[HRH] Hipparchia Rust Helper CLI Debugging Interface (v.0.1.7)
 [HRH] requested the vector_prep() branch of the code
 [HRH] Seeking to build winnertakesall bags of words
 [HRH] No redis key; gathering lines with a direct CLI PostgreSQL query)
-[HRH] 149567 dblines fetched [A: 353ms 741us 338ns]
-[HRH] unified text block built [B: 423ms 144us 973ns]
-[HRH] preliminary cleanups complete [C: 567ms 291us 965ns]
-[HRH] found 67980 sentences [D: 816ms 18us 273ns]
-[HRH] found 81507 words [E: 939ms 301us 768ns]
-[HRH] found 83320 morphology objects [F: 1s 908ms 640us 856ns]
-[HRH] Built morphmap for 81663 items [G: 1s 958ms 642us 283ns]
-[HRH] Built 67980 bags [H: 2s 686ms 767us 709ns]
-[HRH] Purged stopwords in 67388 bags [I: 3s 24ms 255us 694ns]
-[HRH] Stored 67388 bags [J: 3s 252ms 961us 11ns]
+[HRH] 149567 dblines fetched [A: 341ms 563us 220ns]
+[HRH] unified text block built [B: 402ms 748us 359ns]
+[HRH] preliminary cleanups complete [C: 551ms 309us 256ns]
+[HRH] found 67980 sentences [D: 796ms 55us 131ns]
+[HRH] found 81475 words [E: 918ms 104us 438ns]
+[HRH] found 83466 morphology objects [F: 1s 779ms 959us 539ns]
+[HRH] Built morphmap for 81640 items [G: 1s 829ms 612us 743ns]
+[HRH] Built 67980 bags [H: 2s 526ms 992us 298ns]
+[HRH] Purged stopwords in 67386 bags [I: 2s 845ms 3us 687ns]
+[HRH] Stored 67386 bags [J: 3s 57ms 782us 398ns]
+rusttest_vectorresults%
 
 ===
 

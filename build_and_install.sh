@@ -1,5 +1,7 @@
 #!/bin/sh
 
+# RUSTFLAGS="-C target-cpu=native" cargo build --release
+
 cargo build --release
 D="target/release/"
 O="hipparchia_rust_dbhelper"

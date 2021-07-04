@@ -1,11 +1,12 @@
 [package]
 name = "hipparchia_rust_dbhelper"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["e-gun"]
 edition = "2018"
 
 [profile.release]
 lto = true
+# codegen-units = 1
 
 [dependencies]
 clap = "2.33.3"

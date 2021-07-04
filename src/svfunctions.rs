@@ -1,5 +1,5 @@
 //    HipparchiaRustDBHelper: search and vector helper app and functions for HipparchiaServer
-//    Copyright: E Gunderson 21
+//    Copyright: E Gunderson 2021
 //    License: GNU GENERAL PUBLIC LICENSE 3
 //        (see LICENSE in the top level directory of the distribution)
 
@@ -69,6 +69,45 @@ pub fn sv_swapper(text: &str) -> String {
     newtext
 }
 
+pub fn sv_acuteforgrave(text: String) -> String {
+
+    // https://stackoverflow.com/questions/34606043/how-do-i-replace-specific-characters-idiomatically-in-rust
+    // let s:String = "Hello, world!".chars()
+    //     .map(|x| match x {
+    //         '!' => '?',
+    //         'A'..='Z' => 'X',
+    //         'a'..='z' => 'x',
+    //         _ => x
+    //     }).collect();
+    // println!("{}", s);// Xxxxx, xxxxx?
+
+    let remapped: String = text.chars()
+        .map(|c| match c {
+            'ὰ' => 'ά',
+            'ὲ' => 'έ',
+            'ὶ' => 'ί',
+            'ὸ' => 'ό',
+            'ὺ' => 'ύ',
+            'ὴ' => 'ή',
+            'ὼ' => 'ώ',
+            'ἂ' => 'ἄ',
+            'ἒ' => 'ἔ',
+            'ἲ' => 'ἴ',
+            'ὂ' => 'ὄ',
+            'ὒ' => 'ὔ',
+            'ἢ' => 'ἤ',
+            'ὢ' => 'ὤ',
+            'ᾃ' => 'ᾅ',
+            'ᾓ' => 'ᾕ',
+            'ᾣ' => 'ᾥ',
+            'ᾂ' => 'ᾄ',
+            'ᾒ' => 'ᾔ',
+            'ᾢ' => 'ᾤ',
+            _ => c
+        }).collect();
+    remapped
+}
+
 pub fn sv_buildsentences(splittext: Vec<&str>, bagsize: i32) -> HashMap<String, String> {
     // if HashMap<&str, &str> compile error: returns a value referencing data owned by the current function
     // see: https://stackoverflow.com/questions/32682876/is-there-any-way-to-return-a-reference-to-a-variable-created-in-a-function
@@ -81,7 +120,7 @@ pub fn sv_buildsentences(splittext: Vec<&str>, bagsize: i32) -> HashMap<String, 
     let mut sentenceswithlocus: HashMap<String, String> = HashMap::new();
 
     let mut splittext: Vec<&str> = splittext.into_iter().rev().collect();
-    // x.into_iter().rev().collect();
+
     while  splittext.len() > 0 {
         let mut parcel = String::new();
         for _ in 0..bagsize {
@@ -99,18 +138,6 @@ pub fn sv_buildsentences(splittext: Vec<&str>, bagsize: i32) -> HashMap<String, 
         sentenceswithlocus.insert(firsthit, thesentence);
 
     }
-
-    // for s in splittext {
-    //     let lcs = s.to_string().to_lowercase();
-    //     let firsthit: String = match locc.captures(s.clone()) {
-    //         None => "".to_string(),
-    //         Some(x) => x[1].to_string(),
-    //     };
-    //     let thesentence = tagger.replace_all(&lcs, "").into_owned();
-    //     let thesentence = notachar.replace_all(&thesentence, "").into_owned();
-    //     sentenceswithlocus.insert(firsthit, thesentence);
-    // }
-
     sentenceswithlocus
 }
 
@@ -202,13 +229,6 @@ pub fn sv_buildwinnertakesallbags(sentenceswithlocus: HashMap<String, String>, p
     // for s in scoremap.keys() {
     //     println!("{} {}", &s, &scoremap[s]);
     // }
-
-    // in 183796
-    // reor 17869
-    // pertimesco 137
-    // ambo 833
-    // eloquentia 839
-    // ...
 
     // [c] note that there are capital words in the parsemap that need lowering
     // lower the keys and the values at the same time
@@ -358,68 +378,3 @@ pub fn _sv_parallelmorphology() {
     // https://stackoverflow.com/questions/57649032/returning-a-value-from-a-function-that-spawns-threads
     // TODO...
 }
-
-
-// the overcomplicated old way... [and with Vec<String> and not HashMaps...]
-
-// pub fn sv_parallelbagloader(_id: Uuid, key: String, bags: Vec<String>, c: &mut redis::Connection) {
-//     // a worker for sv_loadthebags()
-//
-//     // pipeline...
-//     // https://asosunag.github.io/redis-client/redis_client/
-//     // https://docs.rs/redis/0.13.0/redis/struct.Pipeline.html
-//     // https://github.com/mitsuhiko/redis-rs/blob/master/examples/basic.rs
-//
-//     // this contains a logc flaw at the moment
-//     // the golang verson sends json of a location+bag; there will be no collisions
-//     // this sends bags; there can easily be collisions
-//
-//
-//
-//     let mut pipe = redis::pipe();
-//     for b in bags {
-//         pipe.cmd("SADD").arg(key.as_str()).arg(b.as_str()).ignore();
-//     }
-//     let _: RedisResult<()> = pipe.query(c);
-// }
-//
-// pub fn sv_loadthebags(key: String, mut bags: Vec<String>, workers: i32, rca: &str) {
-//     // load the bags of words into redis; parallelize this
-//     let mut mutworkers = workers;
-//     let uworkers = usize::try_from(workers).unwrap();
-//     let totalwork = bags.len();
-//     let chunksize = totalwork / uworkers;
-//
-//     let mut bagmap: HashMap<i32, Vec<String>> = HashMap::new();
-//
-//     if totalwork <= uworkers {
-//         mutworkers = 1;
-//         bagmap.insert(0, bags.drain(totalwork..).collect());
-//     } else {
-//         for i in 0..workers {
-//             bagmap.insert(i, bags.drain(chunksize * usize::try_from(workers - i).unwrap()..).collect());
-//         }
-//     }
-//
-//     let handles: Vec<thread::JoinHandle<_>> = (0..mutworkers)
-//         .map(|w| {
-//             let thisbag = &bagmap[&w].clone();
-//             let thisbag = thisbag.to_vec();
-//             let mut rc = redisconnect(rca.to_string());
-//             let k = key.clone();
-//             thread::spawn( move || {
-//                 sv_parallelbagloader(Uuid::new_v4(), k, thisbag, &mut rc);
-//             })
-//         })
-//         .collect::<Vec<thread::JoinHandle<_>>>();
-//
-//     for thread in handles {
-//         thread.join().unwrap();
-//     }
-//
-//     // leave no bag behind...: bags might not be fully drained
-//     // a max of workers-1 bags could still be here
-//
-//     let mut rc = redisconnect(rca.to_string());
-//     sv_parallelbagloader(Uuid::new_v4(), key.clone(), bags, &mut rc);
-// }

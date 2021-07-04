@@ -1,5 +1,5 @@
 //    HipparchiaRustDBHelper: search and vector helper app and functions for HipparchiaServer
-//    Copyright: E Gunderson 21
+//    Copyright: E Gunderson 2021
 //    License: GNU GENERAL PUBLIC LICENSE 3
 //
 

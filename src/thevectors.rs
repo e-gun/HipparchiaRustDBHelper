@@ -1,5 +1,5 @@
 //    HipparchiaRustDBHelper: search and vector helper app and functions for HipparchiaServer
-//    Copyright: E Gunderson 21
+//    Copyright: E Gunderson 2021
 //    License: GNU GENERAL PUBLIC LICENSE 3
 //
 
@@ -86,6 +86,7 @@ pub fn vector_prep(thekey: &str, b: &str, _workers: i32, bagsize: i32, db: &str,
     let strip = vec!["&nbsp;", "- ", "<.*?>"];
     let re_array: Vec<Regex> = strip.iter().map(|x| Regex::new(x).unwrap()).collect();
     let fulltext = sv_stripper(fulltext.as_str(), re_array);
+    let fulltext = sv_acuteforgrave(fulltext);
     // println!("stripped\n{}", fulltext);
 
     let re = Regex::new("v").unwrap();

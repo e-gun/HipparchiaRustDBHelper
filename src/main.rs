@@ -1,5 +1,5 @@
 //    HipparchiaRustDBHelper: search and vector helper app and functions for HipparchiaServer
-//    Copyright: E Gunderson 21
+//    Copyright: E Gunderson 2021
 //    License: GNU GENERAL PUBLIC LICENSE 3
 //        (see LICENSE in the top level directory of the distribution)
 
@@ -21,7 +21,7 @@ mod thevectors;
 mod thegrabber;
 
 static MYNAME: &str = "Hipparchia Rust Helper";
-static VERSION: &str = "0.1.6";
+static VERSION: &str = "0.1.7";
 static TESTDB: &str = "lt0448";
 static TESTSTART: &str = "1";
 static TESTEND: &str = "26";
@@ -155,7 +155,7 @@ fn main() {
         .arg(Arg::with_name("v")
             .long("v")
             .takes_value(false)
-            .help("[common] print version and exit"))
+            .help("[compatability] print version and exit"))
         .get_matches();
 
     let ft = cli.value_of("wsf").unwrap();
