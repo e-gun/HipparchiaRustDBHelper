@@ -1,6 +1,6 @@
 [package]
 name = "hipparchia_rust_dbhelper"
-version = "0.1.8"
+version = "0.1.9"
 authors = ["e-gun"]
 edition = "2018"
 
